@@ -1,0 +1,8 @@
+name: Performer Refresh
+description: Adds a refresh button next to stash ID on performer pages. This copies the refresh function in the Performer Tagger interface.
+version: 0.1.8
+ui:
+  javascript:
+    - performer-refresh.js
+  css:
+    - performer-refresh.css

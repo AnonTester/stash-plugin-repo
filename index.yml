@@ -1,0 +1,14 @@
+- id: performer-refresh
+  name: Performer Refresh
+  version: "0.1.8"
+  date: "2026-06-09 13:21:55"
+  path: releases/performer-refresh-0.1.8.zip
+  sha256: 4f34cf447775c6e6a73fe0ae7ce239c7e79783fcdfe45207a0946ad78c125bcd
+  requires: []
+  metadata:
+    description: Adds a refresh button next to the stash-box ID on performer pages,
+      replicating the Update Performer modal from the Performer Tagger interface.
+    url: https://github.com/AnonTester/stash-performer-refresh
+    tags:
+      - performer
+    author: AnonTester

@@ -1,0 +1,74 @@
+/* ══════════════════════════════════════════════════════════════
+   Performer Refresh — stash-performer-refresh plugin
+   ══════════════════════════════════════════════════════════════
+   The modal uses Stash's own Bootstrap + tagger CSS classes
+   (performer-create-modal, create-modal-field/value, image-selection,
+   performer-image, TruncatedText, modal-*, ModalFooter, …).
+   Only plugin-specific styles live here.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Inject button (next to stash-id-pill copy icon) ──────────── */
+
+.performer-refresh-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1em 0.3em;
+  margin-left: 0.2em;
+  vertical-align: middle;
+  opacity: 0.55;
+  transition: opacity 0.15s, transform 0.2s;
+  color: inherit;
+  line-height: 1;
+}
+.performer-refresh-refresh-btn:hover:not(:disabled) { opacity: 1; }
+.performer-refresh-refresh-btn:active:not(:disabled) svg {
+  transform: rotate(180deg);
+  transition: transform 0.35s ease;
+}
+.performer-refresh-refresh-btn:disabled { opacity: 0.3; cursor: default; }
+.performer-refresh-refresh-btn svg { display: block; pointer-events: none; }
+
+/* ── Small spinner (button loading state + Save button) ───────── */
+
+.performer-refresh-spinner {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: pr-spin 0.55s linear infinite;
+  vertical-align: middle;
+}
+@keyframes pr-spin { to { transform: rotate(360deg); } }
+
+/* ── Toast notifications ──────────────────────────────────────── */
+
+#performer-refresh-toasts {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1400;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.performer-refresh-toast {
+  padding: 0.55rem 1rem;
+  border-radius: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  opacity: 1;
+  transition: opacity 0.3s;
+  pointer-events: auto;
+  max-width: 300px;
+  word-break: break-word;
+}
+.performer-refresh-toast--out     { opacity: 0; }
+.performer-refresh-toast--info    { background: var(--bs-info,    #0dcaf0); color: #000; }
+.performer-refresh-toast--success { background: var(--bs-success, #198754); color: #fff; }
+.performer-refresh-toast--error   { background: var(--bs-danger,  #dc3545); color: #fff; }
