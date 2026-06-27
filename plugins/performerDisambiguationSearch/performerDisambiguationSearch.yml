@@ -1,0 +1,16 @@
+name: Performer Disambiguation Search
+description: >-
+  Makes every performer search box (the Performers page search bar, and the
+  performer picker used on scenes/galleries/images/groups/markers and filter
+  criteria) also match the Disambiguation field, not just name and aliases.
+  Works by rewriting the outgoing FindPerformers/FindPerformersForSelect
+  GraphQL requests to use an OR'd name/aliases/disambiguation filter instead
+  of the default name-only search.
+version: 1.0.0
+ui:
+  javascript:
+    - performerDisambiguationSearch.js
+settings:
+  minQueryLength:
+    displayName: Minimum search length (characters)
+    type: NUMBER

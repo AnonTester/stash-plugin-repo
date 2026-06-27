@@ -8,7 +8,38 @@
   metadata:
     description: Adds a refresh button next to the stash-box ID on performer pages,
       replicating the Update Performer modal from the Performer Tagger interface.
-    url: https://github.com/AnonTester/stash-performer-refresh
+    url: https://github.com/AnonTester/stash-plugin-repo/tree/main/plugins/performer-refresh
     tags:
       - performer
+    author: AnonTester
+- id: performerDisambiguationSearch
+  name: Performer Disambiguation Search
+  version: "1.0.0"
+  date: "2026-06-27 23:21:05"
+  path: releases/performerDisambiguationSearch-1.0.0.zip
+  sha256: 257f756b01dcbc5aa71b86ca2cce4c109ddaf465508e4f28a85e3011d081084a
+  requires: []
+  metadata:
+    description: Makes every performer search box (Performers page, and the
+      performer picker on scenes/galleries/images/groups/markers/filters) also
+      match the Disambiguation field, not just name and aliases.
+    url: https://github.com/AnonTester/stash-plugin-repo/tree/main/plugins/performerDisambiguationSearch
+    tags:
+      - performer
+      - search
+    author: AnonTester
+- id: sceneUrlEnhancements
+  name: Scene URL Enhancements
+  version: "1.0.0"
+  date: "2026-06-27 23:21:05"
+  path: releases/sceneUrlEnhancements-1.0.0.zip
+  sha256: 24e5a46e2a043d92941afa8a42e4e9cdc518241300b7d4802f2e1781d04c53ae
+  requires: []
+  metadata:
+    description: Adds an "Open URL in new tab" button to scene URL rows, fixes
+      the URLs field width to match other fields, and can relocate scene URLs
+      from the File Info tab to the Details tab.
+    url: https://github.com/AnonTester/stash-plugin-repo/tree/main/plugins/sceneUrlEnhancements
+    tags:
+      - scene
     author: AnonTester

@@ -1,0 +1,17 @@
+name: Scene URL Enhancements
+description: >-
+  On the scene Edit tab: adds an "Open URL in new tab" button to the left of
+  each URL's Scrape button, and narrows the URL inputs to match the other
+  fields (Title, Studio Code, Date, Director, etc). Optionally moves the
+  scene URLs from the File Info tab to the Details tab (under Tags), since
+  URLs are scene-specific rather than file-specific.
+version: 1.0.0
+ui:
+  javascript:
+    - sceneUrlEnhancements.js
+  css:
+    - sceneUrlEnhancements.css
+settings:
+  moveUrlsToDetailsTab:
+    displayName: Show URLs on Details tab (instead of File Info)
+    type: BOOLEAN

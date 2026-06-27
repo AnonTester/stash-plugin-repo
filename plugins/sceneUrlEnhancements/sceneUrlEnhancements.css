@@ -1,0 +1,9 @@
+/* The URLs field's content column width is matched to Title's via JS
+   (see fixUrlsWidth in sceneUrlEnhancements.js) - the relationship between
+   Bootstrap's col-lg-12 vs col-sm-9 percentages and their actually rendered
+   pixel widths isn't a fixed ratio (it depends on row gutter/negative-margin
+   interactions that don't resolve the same way for both), so a static CSS
+   percentage can't reliably match it across viewport sizes. The label
+   doesn't need any override - it already wraps onto its own full-width line
+   exactly like Title's label does.
+*/

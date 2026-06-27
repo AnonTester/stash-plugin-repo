@@ -1,10 +1,12 @@
-# Performer Refresh — Claude Instructions
+# Stash Plugin Repo — Claude Instructions
+
+This repo hosts multiple Stash plugins, each in its own folder under `plugins/`.
 
 ## After every completed change request
 
 ### 1. Bump the version
 
-Update `version:` in [performer-refresh/performer-refresh.yml](performer-refresh/performer-refresh.yml) using semver:
+Update `version:` in the changed plugin's manifest (`plugins/<id>/<id>.yml`) using semver:
 
 | Change type | Example |
 |---|---|
@@ -18,26 +20,33 @@ Update `version:` in [performer-refresh/performer-refresh.yml](performer-refresh
 ./build.sh
 ```
 
-This will:
-- Create `releases/performer-refresh-<version>.zip` from the plugin source files
-- Recompute the SHA256 and update `index.yml` (version, date, path, sha256)
-- Remove releases older than the 5 most recent versions from both disk and git
-- Commit all changes and push to GitHub
+This will, for every plugin under `plugins/` whose manifest version no longer matches the version recorded in `index.yml`:
+- Create `releases/<plugin-id>-<version>.zip` from that plugin's source files
+- Recompute the SHA256 and update that plugin's entry in `index.yml` (version, date, path, sha256)
+- Remove releases older than the 5 most recent versions for that plugin, from both disk and git
+- Commit all changes (one commit covering every plugin released in that run) and push to GitHub
+
+Plugins whose version is unchanged are left untouched.
 
 ## Project layout
 
 ```
-performer-refresh/          ← plugin source (edit these)
-  performer-refresh.yml     ← Stash plugin manifest + version number
-  performer-refresh.js
-  performer-refresh.css
-releases/                   ← distribution zips (managed by build.sh)
-index.yml                   ← Stash plugin source index (updated by build.sh)
-build.sh                    ← release script
+plugins/                         ← plugin sources (edit these)
+  <plugin-id>/
+    <plugin-id>.yml               ← Stash plugin manifest + version number
+    <plugin-id>.js
+    <plugin-id>.css                ← optional
+    README.md                      ← optional, plugin-specific details
+releases/                        ← distribution zips (managed by build.sh)
+index.yml                        ← Stash plugin source index (updated by build.sh)
+build.sh                         ← release script
+README.md                        ← repo overview + per-plugin docs
 ```
 
 ## Notes
 
-- The version in `performer-refresh/performer-refresh.yml` is the single source of truth — `build.sh` reads it from there.
-- Do **not** manually edit `index.yml` version/date/path/sha256 fields; `build.sh` owns those.
-- The `releases/` folder keeps only the 5 most recent zips; older ones are removed from git history on the next build.
+- The version in each plugin's `<id>.yml` is the single source of truth — `build.sh` reads it from there.
+- Do **not** manually edit `index.yml`'s version/date/path/sha256 fields; `build.sh` owns those.
+- A brand-new plugin needs a manually-added `index.yml` entry (id, name, requires, metadata) before `build.sh` can package it — it will error out otherwise rather than guessing metadata. Use `version: "0.0.0"` as a placeholder so the first real build is picked up as a version increase.
+- The `releases/` folder keeps only the 5 most recent zips per plugin; older ones are removed from git history on the next build.
+- Commits made by `build.sh` (or by Claude on this repo) must not include a `Co-Authored-By: Claude` trailer.
