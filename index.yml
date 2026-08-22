@@ -44,11 +44,11 @@
       - scene
     author: AnonTester
 - id: stash-sense2
-  name: Stash Sense
-  version: "0.13.5"
-  date: "2026-08-22 16:17:09"
-  path: releases/stash-sense2-0.13.5.zip
-  sha256: 109e70c06b65b25d4ce2afa8e3bd57626b7779895e44a0e480c6a0bf003911b7
+  name: Stash Sense 2
+  version: "0.14.1"
+  date: "2026-08-22 19:46:52"
+  path: releases/stash-sense2-0.14.1.zip
+  sha256: bbe4d6f76ab14d88bd6864464284a29db9fc79c9360b6d11044762e8d9d1b09f
   requires: []
   metadata:
     description: ML-powered performer identification and library curation --
