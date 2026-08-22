@@ -43,3 +43,22 @@
     tags:
       - scene
     author: AnonTester
+- id: stash-sense2
+  name: Stash Sense
+  version: "0.13.5"
+  date: "2026-08-22 16:17:09"
+  path: releases/stash-sense2-0.13.5.zip
+  sha256: 109e70c06b65b25d4ce2afa8e3bd57626b7779895e44a0e480c6a0bf003911b7
+  requires: []
+  metadata:
+    description: ML-powered performer identification and library curation --
+      detects faces in scenes/images/galleries, matches them against a
+      published performer database, and surfaces library recommendations.
+      Requires the companion Stash Sense sidecar container
+      (github.com/AnonTester/stash-sense2).
+    url: https://github.com/AnonTester/stash-sense2
+    tags:
+      - performer
+      - identification
+      - machine-learning
+    author: AnonTester
