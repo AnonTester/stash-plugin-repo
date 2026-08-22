@@ -37,10 +37,10 @@
       const status = SS.getSidecarStatus();
       const versionInfo = SS.getSidecarVersionInfo();
       if (status === true && versionInfo && versionInfo.outdated) {
-        return `Stash Sense: sidecar v${versionInfo.current} is older than required `
+        return `${SS.PLUGIN_NAME}: sidecar v${versionInfo.current} is older than required `
           + `(v${versionInfo.required}+). Update the sidecar container to restore full functionality.`;
       }
-      if (status === false) return 'Stash Sense: Not connected';
+      if (status === false) return `${SS.PLUGIN_NAME}: Not connected`;
       return defaultTitle;
     }
 
@@ -118,7 +118,7 @@
       // for a plain call, matching prior behavior exactly.
       async identifyScene(sceneId, onProgress, extraOptions = {}) {
         const settings = await SS.getSettings();
-        onProgress?.('Connecting to Stash Sense...');
+        onProgress?.(`Connecting to ${SS.PLUGIN_NAME}...`);
 
         const stopPolling = pollModelLoading(settings.sidecarUrl, onProgress);
         try {
@@ -161,7 +161,7 @@
       // endpoint (no Stash entity involved).
       async identifyFrame(imageBase64, onProgress) {
         const settings = await SS.getSettings();
-        onProgress?.('Connecting to Stash Sense...');
+        onProgress?.(`Connecting to ${SS.PLUGIN_NAME}...`);
 
         const stopPolling = pollModelLoading(settings.sidecarUrl, onProgress);
         try {
@@ -218,7 +218,7 @@
       // Call the face recognition API for a single image
       async identifyImage(imageId, onProgress) {
         const settings = await SS.getSettings();
-        onProgress?.('Connecting to Stash Sense...');
+        onProgress?.(`Connecting to ${SS.PLUGIN_NAME}...`);
 
         const stopPolling = pollModelLoading(settings.sidecarUrl, onProgress);
         try {
@@ -295,7 +295,7 @@
         header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--bs-border-color, #333);';
         const title = document.createElement('h3');
         title.style.cssText = 'margin:0;font-size:18px;font-weight:600;color:var(--bs-body-color, #fff);';
-        title.textContent = 'Stash Sense Results';
+        title.textContent = `${SS.PLUGIN_NAME} Results`;
         const closeBtn = document.createElement('button');
         closeBtn.className = 'ss-modal-close';
         closeBtn.style.cssText = 'background:none;border:none;font-size:24px;color:var(--bs-secondary-color, #888);cursor:pointer;padding:0;line-height:1;';
@@ -311,7 +311,7 @@
         body.innerHTML = `
           <div class="ss-loading">
             <div class="ss-spinner"></div>
-            <p class="ss-loading-text">Connecting to Stash Sense...</p>
+            <p class="ss-loading-text">Connecting to ${SS.PLUGIN_NAME}...</p>
             <p class="ss-loading-detail"></p>
           </div>
           <div class="ss-results" style="display: none;"></div>
@@ -1159,11 +1159,11 @@
         loading.style.display = 'none';
 
         let title = 'Analysis Failed';
-        let hint = 'Check plugin settings and ensure Stash Sense is running.';
+        let hint = `Check plugin settings and ensure ${SS.PLUGIN_NAME} is running.`;
 
         if (message.includes('Connection') || message.includes('connect')) {
           title = 'Connection Failed';
-          hint = 'Could not connect to Stash Sense. Make sure the sidecar container is running.';
+          hint = `Could not connect to ${SS.PLUGIN_NAME}. Make sure the sidecar container is running.`;
         } else if (message.includes('timeout') || message.includes('Timeout')) {
           title = 'Request Timed Out';
           hint = 'Scene analysis took too long.';
@@ -2159,6 +2159,7 @@
           attrs: {
             title: statusTitle('Identify performers using face recognition'),
             'data-default-title': 'Identify performers using face recognition',
+            'data-ss-plugin': SS.PLUGIN_ID,
           },
           innerHTML: `
             <span class="ss-btn-icon ${statusIconClass(status)}">
@@ -2220,7 +2221,10 @@
       updateButtonStatus(connected) {
         const versionInfo = SS.getSidecarVersionInfo();
         const outdated = connected === true && versionInfo && versionInfo.outdated;
-        document.querySelectorAll('.ss-identify-btn').forEach(btn => {
+        // Scoped to this plugin's own buttons (data-ss-plugin) -- v1 and v2
+        // share the .ss-identify-btn class name, so an unscoped selector
+        // would also flip v1's connection dot based on v2's sidecar status.
+        document.querySelectorAll(`.ss-identify-btn[data-ss-plugin="${SS.PLUGIN_ID}"]`).forEach(btn => {
           const icon = btn.querySelector('.ss-btn-icon');
           if (!icon) return;
           icon.classList.remove('ss-connected', 'ss-disconnected', 'ss-outdated');
@@ -2277,6 +2281,7 @@
           attrs: {
             title: statusTitle('Identify performers using face recognition'),
             'data-default-title': 'Identify performers using face recognition',
+            'data-ss-plugin': SS.PLUGIN_ID,
           },
           innerHTML: `
             <span class="ss-btn-icon ${statusIconClass(status)}">
@@ -2321,7 +2326,7 @@
       // Call the gallery identification API
       async identifyGallery(galleryId, onProgress) {
         const settings = await SS.getSettings();
-        onProgress?.('Connecting to Stash Sense...');
+        onProgress?.(`Connecting to ${SS.PLUGIN_NAME}...`);
 
         const stopPolling = pollModelLoading(settings.sidecarUrl, onProgress);
         try {
@@ -2597,6 +2602,7 @@
           attrs: {
             title: statusTitle('Identify all performers in this gallery'),
             'data-default-title': 'Identify all performers in this gallery',
+            'data-ss-plugin': SS.PLUGIN_ID,
           },
           innerHTML: `
             <span class="ss-btn-icon ${statusIconClass(status)}">
@@ -2656,9 +2662,15 @@
       setTimeout(check, 300);
     }
 
-    // Inject button into the appropriate toolbar for the current page type
+    // Inject button into the appropriate toolbar for the current page type.
+    // Idempotency check is scoped to this plugin's own buttons
+    // (data-ss-plugin) -- v1 and v2 share the .ss-identify-btn class name,
+    // so an unscoped selector meant "whichever plugin's JS ran first wins,
+    // the other silently sees a button that isn't its own and never
+    // injects" when both are installed side by side.
+    const OWN_BUTTON_SELECTOR = `.ss-identify-btn[data-ss-plugin="${SS.PLUGIN_ID}"]`;
     function injectButton(route) {
-      if (document.querySelector('.ss-identify-btn')) return;
+      if (document.querySelector(OWN_BUTTON_SELECTOR)) return;
 
       const toolbarMap = {
         scene:   { selector: '.scene-toolbar-group:last-child',   create: () => FaceRecognition.createButton() },
@@ -2670,7 +2682,7 @@
       if (!config) return;
 
       waitForElement(config.selector, (container) => {
-        if (document.querySelector('.ss-identify-btn')) return; // re-check after wait
+        if (document.querySelector(OWN_BUTTON_SELECTOR)) return; // re-check after wait
         container.appendChild(config.create());
         console.log(`[${SS.PLUGIN_NAME}] Button injected into ${config.selector}`);
       });
