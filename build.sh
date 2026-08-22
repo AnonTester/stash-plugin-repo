@@ -49,7 +49,10 @@ for PLUGIN_PATH in "${PLUGINS_DIR}"/*/; do
   ZIP_ABS="${REPO_ROOT}/${ZIP_PATH}"
 
   # ── Create zip (files at root, no subdirectory) ──────────────────────────
-  (cd "$PLUGIN_PATH" && zip -j "$ZIP_ABS" *.yml *.js *.css)
+  # *.py included for plugins with a Python `exec:` backend (e.g.
+  # stash-sense2's stash_sense_backend.py) -- nullglob (set above) makes
+  # this a no-op for plugins with no .py files.
+  (cd "$PLUGIN_PATH" && zip -j "$ZIP_ABS" *.yml *.js *.css *.py)
 
   # ── Compute SHA256 ─────────────────────────────────────────────────────────
   SHA256=$(sha256sum "${ZIP_PATH}" | cut -d' ' -f1)
@@ -96,7 +99,7 @@ PYEOF
 
   echo "  index.yml updated"
 
-  git add "${ZIP_PATH}" "${INDEX}" "${PLUGIN_PATH}"*.yml "${PLUGIN_PATH}"*.js "${PLUGIN_PATH}"*.css
+  git add "${ZIP_PATH}" "${INDEX}" "${PLUGIN_PATH}"*.yml "${PLUGIN_PATH}"*.js "${PLUGIN_PATH}"*.css "${PLUGIN_PATH}"*.py
 
   # ── Prune old releases for this plugin — keep the ${MAX_KEEP} most recent ──
   OLD_ZIPS=$(ls "${RELEASES_DIR}/${PLUGIN_ID}"-*.zip 2>/dev/null \
