@@ -22,6 +22,7 @@ Updates are applied the same way: return to **Settings → Plugins**, check for 
 | [Performer Refresh](#performer-refresh) | Adds a refresh button next to the stash-box ID on performer pages, replicating the Update Performer modal from the Performer Tagger. |
 | [Performer Disambiguation Search](#performer-disambiguation-search) | Makes performer search/autocomplete also match the Disambiguation field, not just name and aliases. |
 | [Scene URL Enhancements](#scene-url-enhancements) | Adds an open-in-new-tab button to scene URLs, fixes their field width, and can relocate them to the Details tab. |
+| [Stash Sense 2](#stash-sense-2) | ML-powered performer identification and library curation — face recognition, duplicate detection, and upstream sync. Requires a separate sidecar container. |
 
 ---
 
@@ -116,6 +117,24 @@ Three small fixes for the URLs field on a scene's Edit tab:
 3. Restart Stash or reload plugins
 
 See [`plugins/sceneUrlEnhancements/README.md`](plugins/sceneUrlEnhancements/README.md) for how it works and known limitations.
+
+---
+
+## Stash Sense 2
+
+ML-powered performer identification and library curation. Identifies performers in scenes and images via face recognition against a database of 150,000+ performers, detects duplicate scenes, and syncs upstream metadata changes from stash-box endpoints. Runs its own recommendations dashboard covering all of this in one place.
+
+Unlike the other plugins here, this one needs a companion sidecar container doing the actual ML work — the plugin alone won't do anything without it.
+
+### Requirements
+
+- A running [Stash Sense 2 sidecar](https://github.com/AnonTester/stash-sense2) container (AMD/NVIDIA GPU or CPU-only) — see that repo's README for setup, requirements, and hardware notes.
+
+### Installation
+
+**Via Plugin Source (recommended):** install from the table above once this repo is added as a source. This installs the plugin only — set up the sidecar container separately per the [Stash Sense 2 README](https://github.com/AnonTester/stash-sense2#quick-start), then point the plugin at it from its Settings tab.
+
+See the [Stash Sense 2 repo](https://github.com/AnonTester/stash-sense2) for full documentation, including manual installation instructions.
 
 ---
 
