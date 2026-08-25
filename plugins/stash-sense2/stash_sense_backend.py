@@ -149,7 +149,14 @@ def log(message):
 # failures are queued to a local retry-cache file and flushed opportunistically
 # on a later successful hook call.
 
-PLUGIN_ID = "stash-sense"
+# Must match the directory name this plugin is actually installed under in
+# Stash (see PLUGIN_ID's comment in stash-sense-core.js for the full story --
+# this had the same v1-id bug: _get_sidecar_url() below reads
+# configuration.plugins[PLUGIN_ID] to resolve the sidecar URL for a hook
+# call, so while this stayed 'stash-sense' the hook silently synced
+# performer changes into v1's sidecar instead of v2's whenever both were
+# installed side by side).
+PLUGIN_ID = "stash-sense2"
 PENDING_SYNC_FILENAME = "pending_local_sync.json"
 HOOK_SYNC_TIMEOUT = 3
 HOOK_FLUSH_LIMIT = 20
@@ -819,6 +826,16 @@ def fp_stop(sidecar_url):
     return sidecar_post(sidecar_url, "/recommendations/fingerprints/stop", {})
 
 
+def fp_reset(sidecar_url):
+    """Back up all scene fingerprints, then mark every one for refresh.
+
+    Used when a detection-affecting setting (e.g. detection_size) changes
+    and the user chooses to regenerate existing fingerprints rather than
+    only apply the new setting going forward.
+    """
+    return sidecar_post(sidecar_url, "/recommendations/fingerprints/reset", {})
+
+
 def handle_recommendations(mode, args, sidecar_url):
     """Handle recommendations-related operations."""
     if mode == "rec_counts":
@@ -1132,6 +1149,30 @@ def handle_recommendations(mode, args, sidecar_url):
             },
         )
 
+    elif mode == "rec_accept_scene_face_matches":
+        return sidecar_post(
+            sidecar_url,
+            "/recommendations/actions/accept-scene-face-matches",
+            {
+                "scene_id": str(args.get("scene_id", "")),
+                "selections": args.get("selections", []),
+            },
+        )
+
+    elif mode == "rec_reject_all_scene_face_matches":
+        return sidecar_post(
+            sidecar_url,
+            "/recommendations/actions/reject-all-scene-face-matches",
+            {"scene_id": str(args.get("scene_id", ""))},
+        )
+
+    elif mode == "rec_dismiss_scene_face_match":
+        return sidecar_post(
+            sidecar_url,
+            "/recommendations/actions/dismiss-scene-face-match",
+            {"rec_id": args.get("rec_id")},
+        )
+
     elif mode == "rec_accept_all_fingerprint_matches":
         payload = {}
         endpoint = args.get("endpoint")
@@ -1243,6 +1284,9 @@ def handle_recommendations(mode, args, sidecar_url):
 
     elif mode == "fp_stop":
         return fp_stop(sidecar_url)
+
+    elif mode == "fp_reset":
+        return fp_reset(sidecar_url)
 
     return None
 

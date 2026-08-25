@@ -1,13 +1,5 @@
 /* Stash Sense Plugin Styles */
 
-/* TEMPORARY (buffalo_l + usearch migration testing): orange border marks
-   this as the v2 sidecar's button, so it's visually distinguishable from
-   the v1 plugin's identical button when both are installed at once on the
-   same Stash instance. Remove this rule once v2 replaces v1 for real. */
-.ss-identify-btn {
-  border: 2px solid #ff8c00 !important;
-}
-
 /* Identify Button (icon-only) */
 .ss-identify-btn {
   display: inline-flex;
@@ -1204,6 +1196,46 @@
 .ss-dismiss-all-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.ss-dismiss-selected-btn {
+  padding: 8px 20px;
+  background: transparent;
+  color: #999;
+  border: 1px solid #555;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.ss-dismiss-selected-btn:hover:not(:disabled) {
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.ss-dismiss-selected-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ss-dup-scene-select {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ss-dup-scene-select-cb {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
 }
 
 /* Modal overlay */
@@ -3793,6 +3825,173 @@ a.ss-detail-entity-link:hover {
   .ss-fp-detail-divider {
     width: 100%;
     height: 2px;
+  }
+}
+
+/* ==================== Scene Face Matches ==================== */
+
+.ss-sfm-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ss-sfm-detail-header h2 {
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.ss-sfm-video {
+  width: 100%;
+  max-height: 480px;
+  border-radius: 0.5rem;
+  background: #000;
+  display: block;
+}
+
+.ss-sfm-no-video {
+  width: 100%;
+  height: 200px;
+  border-radius: 0.5rem;
+  background: var(--bs-body-bg, #1a1a1a);
+}
+
+.ss-sfm-persons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.ss-sfm-person-column {
+  flex: 1 1 220px;
+  min-width: 200px;
+  background: var(--bs-body-bg, #1a1a1a);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.ss-sfm-person-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bs-body-color, #fff);
+  margin-bottom: 0.6rem;
+}
+
+.ss-sfm-person-frames {
+  font-weight: 400;
+  color: var(--bs-secondary-color, #888);
+  font-size: 12px;
+}
+
+.ss-sfm-person-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.ss-sfm-candidate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  padding: 0.6rem;
+  background: var(--bs-secondary-bg, #242424);
+  border-radius: 0.4rem;
+  border: 1px solid transparent;
+}
+
+.ss-sfm-candidate:has(.ss-sfm-candidate-cb:checked) {
+  border-color: var(--bs-primary, #0d6efd);
+}
+
+.ss-sfm-candidate-inactive {
+  opacity: 0.5;
+}
+
+.ss-sfm-candidate-select {
+  display: block;
+  position: relative;
+  cursor: pointer;
+}
+
+.ss-sfm-candidate-select input[type="checkbox"] {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  z-index: 1;
+}
+
+.ss-sfm-candidate-thumb {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bs-body-bg, #1a1a1a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ss-sfm-candidate-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ss-sfm-candidate-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bs-body-color, #fff);
+  overflow-wrap: break-word;
+}
+
+.ss-sfm-candidate-meta {
+  font-size: 12px;
+  color: var(--bs-secondary-color, #aaa);
+}
+
+.ss-sfm-candidate-status {
+  text-transform: capitalize;
+}
+
+.ss-sfm-candidate-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 11px;
+}
+
+.ss-sfm-jump-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.ss-btn-tiny {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+}
+
+.ss-sfm-detail-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bs-border-color, #333);
+}
+
+@media (max-width: 600px) {
+  .ss-sfm-persons {
+    flex-direction: column;
   }
 }
 

@@ -51,8 +51,17 @@
     async getFingerprintJobs() {
       return apiCall('queue_list', { type: 'fingerprint_generation' });
     },
+    async resetFingerprintsWithBackup() {
+      return apiCall('fp_reset');
+    },
     async checkUpdate() {
       return apiCall('db_check_update');
+    },
+    async startDatabaseUpdate() {
+      return apiCall('db_update');
+    },
+    async getDatabaseUpdateStatus() {
+      return apiCall('db_update_status');
     },
     async getLogs() {
       return apiCall('logs_list');
@@ -478,11 +487,12 @@
     }
 
     try {
-      const [fpStatus, dbInfo, updateInfo, fpJobs] = await Promise.all([
+      const [fpStatus, dbInfo, updateInfo, fpJobs, dbUpdateStatus] = await Promise.all([
         SettingsAPI.getFingerprintStatus().catch(() => null),
         SettingsAPI.getDatabaseInfo().catch(() => null),
         SettingsAPI.checkUpdate().catch(() => null),
         SettingsAPI.getFingerprintJobs().catch(() => null),
+        SettingsAPI.getDatabaseUpdateStatus().catch(() => null),
       ]);
 
       const fpJobActive = !!(fpJobs && fpJobs.jobs || []).find(
@@ -495,22 +505,35 @@
       const performerCount = dbInfo?.performer_count || 0;
       const faceCount = dbInfo?.face_count || 0;
 
+      // No database downloaded yet (fresh install) vs. a newer one available --
+      // both cases need the same trigger, just different button copy.
+      const noDatabase = !updateInfo || !updateInfo.current_version;
+      const updateAvailable = updateInfo && updateInfo.update_available;
+      const dbUpdateActive = dbUpdateStatus
+        && !['idle', 'complete', 'failed'].includes(dbUpdateStatus.status);
+
       // Row 1: performer database (the ~2GB dataset downloaded via Database Update)
       performerStatsEl.className = 'ss-id-database-stats ss-id-database-stats-performer';
       performerStatsEl.innerHTML = `
         <div class="ss-db-stat">
-          <span class="ss-db-stat-value">${dbVersion}</span>
+          <span class="ss-db-stat-value">${noDatabase ? 'None' : dbVersion}</span>
           <span class="ss-db-stat-label">Version</span>
-          ${updateInfo && updateInfo.update_available ? `
+          ${(noDatabase || updateAvailable) ? `
             <div class="ss-update-badge">
-              <span class="ss-update-badge-text">v${updateInfo.latest_version} available${
-                updateInfo.delta_available
-                  ? ` \u2014 ${updateInfo.delta_download_size_mb} MB via delta (${updateInfo.delta_chain_length} release${updateInfo.delta_chain_length === 1 ? '' : 's'} behind)`
-                  : updateInfo.download_size_mb
-                    ? ` \u2014 ${updateInfo.download_size_mb} MB full download`
-                    : ''
+              <span class="ss-update-badge-text">${noDatabase
+                ? 'No database downloaded yet'
+                : `v${updateInfo.latest_version} available${
+                    updateInfo.delta_available
+                      ? ` \u2014 ${updateInfo.delta_download_size_mb} MB via delta (${updateInfo.delta_chain_length} release${updateInfo.delta_chain_length === 1 ? '' : 's'} behind)`
+                      : updateInfo.download_size_mb
+                        ? ` \u2014 ${updateInfo.download_size_mb} MB full download`
+                        : ''
+                  }`
               }</span>
             </div>
+            <button class="ss-update-btn ss-download-db-btn" id="ss-download-db-btn" ${dbUpdateActive ? 'disabled' : ''}>
+              ${dbUpdateActive ? 'Downloading\u2026' : (noDatabase ? 'Download Database' : 'Update Database')}
+            </button>
           ` : ''}
         </div>
         <div class="ss-db-stat">
@@ -522,6 +545,40 @@
           <span class="ss-db-stat-label">Faces</span>
         </div>
       `;
+
+      const downloadDbBtn = performerStatsEl.querySelector('#ss-download-db-btn');
+      if (downloadDbBtn) {
+        downloadDbBtn.addEventListener('click', async () => {
+          downloadDbBtn.disabled = true;
+          downloadDbBtn.textContent = 'Starting…';
+          try {
+            await SettingsAPI.startDatabaseUpdate();
+            pollDatabaseUpdate(downloadDbBtn);
+          } catch (e) {
+            const msg = String(e.message || '');
+            const alreadyRunning = msg.includes('409') || msg.includes('already in progress');
+            if (alreadyRunning) {
+              pollDatabaseUpdate(downloadDbBtn);
+            } else {
+              downloadDbBtn.textContent = 'Error';
+              downloadDbBtn.className = 'ss-btn ss-btn-danger ss-btn-sm ss-download-db-btn';
+              setTimeout(() => {
+                downloadDbBtn.textContent = noDatabase ? 'Download Database' : 'Update Database';
+                downloadDbBtn.className = 'ss-update-btn ss-download-db-btn';
+                downloadDbBtn.disabled = false;
+              }, 3000);
+            }
+          }
+        });
+
+        // A download already in progress (e.g. this tab was reopened, or the
+        // update was triggered elsewhere) -- pick up polling immediately
+        // rather than showing a clickable button that would just 409.
+        if (dbUpdateActive) {
+          downloadDbBtn.disabled = true;
+          pollDatabaseUpdate(downloadDbBtn);
+        }
+      }
 
       // Row 2: this scene library's own fingerprint coverage (stash_sense.db,
       // local to this install -- not part of the downloaded performer
@@ -579,6 +636,74 @@
     }
 
     return section;
+  }
+
+  // Poll /database/update/status while a download is running, updating
+  // `btn`'s label with live progress. On completion, refreshes the whole
+  // Identification Database section so the button/badge naturally
+  // disappears once the database is current -- same mechanism the
+  // "Missing" fingerprint count uses to update after a run finishes.
+  const DB_UPDATE_STATUS_LABELS = {
+    downloading: 'Downloading',
+    extracting: 'Extracting',
+    verifying: 'Verifying',
+    swapping: 'Applying',
+    reloading: 'Reloading',
+  };
+
+  function pollDatabaseUpdate(btn) {
+    const POLL_INTERVAL_MS = 2000;
+    const POLL_TIMEOUT_MS = 30 * 60 * 1000; // large full downloads can take a while
+    const pollStart = Date.now();
+    let pollErrors = 0;
+
+    const interval = setInterval(async () => {
+      // The section may have been replaced from under us (e.g. user hit
+      // the section's own Refresh button) -- stop rather than touch a
+      // detached node or race a second poll loop.
+      if (!btn.isConnected) {
+        clearInterval(interval);
+        return;
+      }
+      if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
+        clearInterval(interval);
+        btn.textContent = 'Timeout';
+        btn.className = 'ss-btn ss-btn-danger ss-btn-sm ss-download-db-btn';
+        btn.disabled = false;
+        return;
+      }
+
+      let status;
+      try {
+        status = await SettingsAPI.getDatabaseUpdateStatus();
+        pollErrors = 0;
+      } catch (e) {
+        pollErrors++;
+        if (pollErrors >= 5) {
+          clearInterval(interval);
+          btn.textContent = 'Error';
+          btn.className = 'ss-btn ss-btn-danger ss-btn-sm ss-download-db-btn';
+          btn.disabled = false;
+        }
+        return;
+      }
+
+      if (status.status === 'complete') {
+        clearInterval(interval);
+        await refreshIdDatabaseSection();
+        return;
+      }
+      if (status.status === 'failed') {
+        clearInterval(interval);
+        btn.textContent = status.error ? `Error: ${status.error}` : 'Error';
+        btn.className = 'ss-btn ss-btn-danger ss-btn-sm ss-download-db-btn';
+        btn.disabled = false;
+        return;
+      }
+
+      const label = DB_UPDATE_STATUS_LABELS[status.status] || 'Downloading';
+      btn.textContent = `${label}… ${status.progress_pct}%`;
+    }, POLL_INTERVAL_MS);
   }
 
   // Re-fetch and swap in fresh stats without re-rendering the whole settings
@@ -1002,12 +1127,23 @@
     if (setting.min !== undefined) input.setAttribute('min', setting.min);
     if (setting.max !== undefined) input.setAttribute('max', setting.max);
 
-    input.addEventListener('input', () => {
-      const val = setting.type === 'float' ? parseFloat(input.value) : parseInt(input.value, 10);
-      if (!isNaN(val)) {
-        debouncedSave(key, val, wrapper.closest('.ss-setting-row'));
-      }
-    });
+    if (key === 'detection_size') {
+      // Gated separately below (fires once on commit, not per keystroke --
+      // this setting needs a confirmation modal before saving, unlike the
+      // generic debounced-autosave path every other number input uses).
+      input.addEventListener('change', () => {
+        const val = parseInt(input.value, 10);
+        if (isNaN(val) || val === setting.value) return;
+        showDetectionSizeChangeModal(key, val, setting, input, wrapper.closest('.ss-setting-row'));
+      });
+    } else {
+      input.addEventListener('input', () => {
+        const val = setting.type === 'float' ? parseFloat(input.value) : parseInt(input.value, 10);
+        if (!isNaN(val)) {
+          debouncedSave(key, val, wrapper.closest('.ss-setting-row'));
+        }
+      });
+    }
 
     wrapper.appendChild(input);
 
@@ -1020,6 +1156,118 @@
     }
 
     return wrapper;
+  }
+
+  // detection_size changes the resolution faces are detected at -- but
+  // existing scene fingerprints are a frozen snapshot of a past
+  // identify_scene run, and nothing tracks which detection_size produced
+  // them (only db_version is tracked). Changing this setting alone never
+  // retroactively improves already-fingerprinted scenes; this modal makes
+  // that explicit and offers a way to force reprocessing instead of
+  // silently leaving old fingerprints stale relative to the new value.
+  function showDetectionSizeChangeModal(key, newVal, setting, input, row) {
+    const oldVal = setting.value;
+    const overlay = SS.createElement('div', { className: 'ss-modal-overlay' });
+    overlay.innerHTML = `
+      <div class="ss-modal-content" style="max-width:480px;padding:20px;">
+        <h3 style="margin:0 0 12px;">Change Detection Resolution?</h3>
+        <p style="margin:0 0 12px;color:#ccc;">
+          Detection Resolution only affects face detection for scenes identified
+          <strong>from now on</strong>. Existing scene fingerprints are a
+          snapshot of a past run at the old resolution (${oldVal}px) --
+          changing this setting does not retroactively improve them.
+        </p>
+        <p style="margin:0 0 16px;color:#ccc;">
+          To have already-fingerprinted scenes benefit from ${newVal}px, they
+          need to be reprocessed. You can reset the fingerprint database now
+          (a backup of the current data is kept first), or just apply the new
+          resolution going forward and leave existing fingerprints as-is.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="ss-btn ss-btn-primary" id="ss-detsize-reset" style="width:100%;">
+            Reset fingerprint database (backs up first)
+          </button>
+          <button class="ss-btn ss-btn-secondary" id="ss-detsize-apply-new" style="width:100%;">
+            Apply only to new fingerprints
+          </button>
+          <button class="ss-btn ss-btn-secondary" id="ss-detsize-cancel" style="width:100%;">
+            Cancel (keep ${oldVal}px)
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const setButtonsDisabled = (disabled) => {
+      overlay.querySelectorAll('button').forEach((btn) => { btn.disabled = disabled; });
+    };
+
+    const cancelAndRevert = async () => {
+      input.value = String(oldVal);
+      overlay.remove();
+      // Explicit no-op guard: if the value somehow already equals the
+      // tier default, resetting again is harmless (SettingsAPI.reset is
+      // idempotent), so no special-case needed here.
+      try {
+        const result = await SettingsAPI.reset(key);
+        setting.value = result.value;
+        setting.is_override = false;
+        input.value = String(result.value);
+        showSaveIndicator(row, 'Reverted', false);
+      } catch (e) {
+        showSaveIndicator(row, 'Error', true);
+        console.error(`Failed to revert ${key}:`, e);
+      }
+    };
+
+    overlay.querySelector('#ss-detsize-cancel').addEventListener('click', cancelAndRevert);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cancelAndRevert();
+    });
+
+    overlay.querySelector('#ss-detsize-apply-new').addEventListener('click', async () => {
+      setButtonsDisabled(true);
+      try {
+        await SettingsAPI.update(key, newVal);
+        setting.value = newVal;
+        setting.is_override = true;
+        overlay.remove();
+        showSaveIndicator(row, 'Saved', false);
+      } catch (e) {
+        setButtonsDisabled(false);
+        console.error(`Failed to save ${key}:`, e);
+      }
+    });
+
+    overlay.querySelector('#ss-detsize-reset').addEventListener('click', async () => {
+      setButtonsDisabled(true);
+      overlay.querySelector('.ss-modal-content').innerHTML =
+        '<div class="ss-loading-inline"><div class="ss-spinner"></div></div>'
+        + '<p style="text-align:center;margin-top:0.5rem;">Backing up and resetting fingerprint database...</p>';
+      try {
+        const resetResult = await SettingsAPI.resetFingerprintsWithBackup();
+        await SettingsAPI.update(key, newVal);
+        setting.value = newVal;
+        setting.is_override = true;
+        overlay.remove();
+        showSaveIndicator(row, 'Saved', false);
+        // Reflect the reset immediately if the fingerprint stats section
+        // is on screen -- it's a stale snapshot otherwise (see its own
+        // Refresh button's rationale).
+        const idDbSection = document.querySelector('.ss-id-database-settings-section');
+        if (idDbSection) refreshIdDatabaseSection();
+        console.log(
+          `[${SS.PLUGIN_NAME}] Fingerprint database reset: ` +
+          `${resetResult.fingerprints_backed_up} backed up to ` +
+          `${resetResult.backup_fingerprints_table}, ` +
+          `${resetResult.marked_for_refresh} marked for refresh`
+        );
+      } catch (e) {
+        overlay.remove();
+        showSaveIndicator(row, 'Error', true);
+        console.error('Failed to reset fingerprint database:', e);
+      }
+    });
   }
 
   function renderTextInput(key, setting) {
