@@ -45,11 +45,24 @@
     async getFingerprintStatus() {
       return apiCall('fp_status');
     },
-    async startFingerprintGeneration() {
-      return apiCall('queue_submit', { type: 'fingerprint_generation' });
+    async startFingerprintGeneration(options = {}) {
+      // Two distinct job types now (previously one type with the scope
+      // hidden inside its cursor, which made both Settings buttons react
+      // to "is *a* fingerprint job running" instead of their own scope --
+      // see fingerprint_job.py's docstring). refreshOutdated=false (the
+      // default here) is "Fingerprint Missing"; true is "Refresh Outdated".
+      const type = options.refreshOutdated ? 'fingerprint_refresh_outdated' : 'fingerprint_generation';
+      return apiCall('queue_submit', { type });
     },
     async getFingerprintJobs() {
-      return apiCall('queue_list', { type: 'fingerprint_generation' });
+      const [missing, outdated] = await Promise.all([
+        apiCall('queue_list', { type: 'fingerprint_generation' }),
+        apiCall('queue_list', { type: 'fingerprint_refresh_outdated' }),
+      ]);
+      return {
+        missing: (missing && missing.jobs) || [],
+        outdated: (outdated && outdated.jobs) || [],
+      };
     },
     async resetFingerprintsWithBackup() {
       return apiCall('fp_reset');
@@ -505,11 +518,14 @@
         SettingsAPI.getLocalPerformerStats().catch(() => null),
       ]);
 
-      const fpJobActive = !!(fpJobs && fpJobs.jobs || []).find(
+      const isActive = jobs => !!(jobs || []).find(
         j => j.status === 'queued' || j.status === 'running' || j.status === 'stopping'
       );
+      const missingJobActive = isActive(fpJobs && fpJobs.missing);
+      const outdatedJobActive = isActive(fpJobs && fpJobs.outdated);
 
       const fpCoverage = (fpStatus && fpStatus.complete_fingerprints) || 0;
+      const outdatedCount = (fpStatus && fpStatus.outdated_count) || 0;
       const totalScenes = fpStatus && fpStatus.total_scenes != null ? fpStatus.total_scenes : null;
       const dbVersion = (fpStatus && fpStatus.current_db_version) || dbInfo?.version || 'N/A';
       const performerCount = dbInfo?.performer_count || 0;
@@ -522,6 +538,11 @@
       const updateAvailable = updateInfo && updateInfo.update_available;
       const dbUpdateActive = dbUpdateStatus
         && !['idle', 'complete', 'failed'].includes(dbUpdateStatus.status);
+      // A newer database release exists but requires a sidecar version
+      // this container doesn't have yet -- server-side enforced too (see
+      // database_health_router.py's start_database_update()), this is
+      // just surfacing that ahead of a click instead of a 400 error.
+      const blockedBySidecarVersion = updateAvailable && updateInfo.sidecar_compatible === false;
 
       // Row 1: performer database (the ~2GB dataset downloaded via Database Update)
       performerStatsEl.className = 'ss-id-database-stats ss-id-database-stats-performer';
@@ -533,18 +554,22 @@
             <div class="ss-update-badge">
               <span class="ss-update-badge-text">${noDatabase
                 ? 'No database downloaded yet'
-                : `v${updateInfo.latest_version} available${
-                    updateInfo.delta_available
-                      ? ` \u2014 ${updateInfo.delta_download_size_mb} MB via delta (${updateInfo.delta_chain_length} release${updateInfo.delta_chain_length === 1 ? '' : 's'} behind)`
-                      : updateInfo.download_size_mb
-                        ? ` \u2014 ${updateInfo.download_size_mb} MB full download`
-                        : ''
-                  }`
+                : blockedBySidecarVersion
+                  ? `v${updateInfo.latest_version} available \u2014 requires sidecar v${updateInfo.min_sidecar_version}+, update the sidecar container to install it`
+                  : `v${updateInfo.latest_version} available${
+                      updateInfo.delta_available
+                        ? ` \u2014 ${updateInfo.delta_download_size_mb} MB via delta (${updateInfo.delta_chain_length} release${updateInfo.delta_chain_length === 1 ? '' : 's'} behind)`
+                        : updateInfo.download_size_mb
+                          ? ` \u2014 ${updateInfo.download_size_mb} MB full download`
+                          : ''
+                    }`
               }</span>
             </div>
-            <button class="ss-update-btn ss-download-db-btn" id="ss-download-db-btn" ${dbUpdateActive ? 'disabled' : ''}>
-              ${dbUpdateActive ? 'Downloading\u2026' : (noDatabase ? 'Download Database' : 'Update Database')}
-            </button>
+            ${blockedBySidecarVersion ? '' : `
+              <button class="ss-update-btn ss-download-db-btn" id="ss-download-db-btn" ${dbUpdateActive ? 'disabled' : ''}>
+                ${dbUpdateActive ? 'Downloading\u2026' : (noDatabase ? 'Download Database' : 'Update Database')}
+              </button>
+            `}
           ` : ''}
         </div>
         <div class="ss-db-stat">
@@ -559,6 +584,15 @@
           <span class="ss-db-stat-value">${localFaceCount.toLocaleString()}</span>
           <span class="ss-db-stat-label">Local Faces</span>
         </div>
+        ${outdatedCount > 0 ? `
+        <div class="ss-db-stat ss-db-stat-warning" title="Scenes already identified, but last matched against an older performer database version than the one above.">
+          <span class="ss-db-stat-value">${outdatedCount.toLocaleString()}</span>
+          <span class="ss-db-stat-label">Outdated</span>
+        </div>
+        <button class="ss-btn ss-btn-secondary ss-btn-sm ss-refresh-outdated-btn" id="ss-refresh-outdated-btn" ${outdatedJobActive ? 'disabled' : ''}>
+          ${outdatedJobActive ? 'Refresh in Progress' : `Refresh Outdated (${outdatedCount.toLocaleString()})`}
+        </button>
+        ` : ''}
       `;
 
       const downloadDbBtn = performerStatsEl.querySelector('#ss-download-db-btn');
@@ -597,10 +631,15 @@
 
       // Row 2: this scene library's own fingerprint coverage (stash_sense.db,
       // local to this install -- not part of the downloaded performer
-      // database). "Missing" replaces the old "Need Refresh" figure: with
-      // cached signals, a performer-database update no longer invalidates
-      // existing fingerprints, so the only gap worth surfacing here is
-      // scenes that have never been fingerprinted at all.
+      // database). "Missing" is scenes that have never been detected/
+      // matched at all (new videos) -- belongs here, in the fingerprint
+      // pipeline itself. "Outdated" (already-identified scenes last
+      // matched against an older performer-database version) is the
+      // opposite: it's about the *performer* database being stale, not
+      // this scene's own fingerprint, so its stat + "Refresh Outdated"
+      // button live in Row 1 instead -- see performerStatsEl above.
+      // "Fingerprint Missing" only ever touches never-fingerprinted
+      // scenes; it never implicitly reprocesses the rest of the library.
       const missing = totalScenes != null ? Math.max(0, totalScenes - fpCoverage) : null;
       fingerprintStatsEl.className = 'ss-id-database-stats ss-id-database-stats-fingerprint';
       fingerprintStatsEl.innerHTML = `
@@ -617,33 +656,40 @@
           <span class="ss-db-stat-value">${missing.toLocaleString()}</span>
           <span class="ss-db-stat-label">Missing</span>
         </div>
-        <button class="ss-btn ss-btn-primary ss-btn-sm ss-start-fingerprinting-btn" id="ss-start-fingerprinting-btn" ${fpJobActive ? 'disabled' : ''}>
-          ${fpJobActive ? 'Fingerprinting in Progress' : 'Start Fingerprinting'}
+        <button class="ss-btn ss-btn-primary ss-btn-sm ss-start-fingerprinting-btn" id="ss-start-fingerprinting-btn" ${missingJobActive ? 'disabled' : ''}>
+          ${missingJobActive ? 'Fingerprinting in Progress' : `Fingerprint Missing (${missing.toLocaleString()})`}
         </button>
         ` : ''}
       `;
 
-      const startBtn = fingerprintStatsEl.querySelector('#ss-start-fingerprinting-btn');
-      if (startBtn) {
-        startBtn.addEventListener('click', async () => {
-          startBtn.disabled = true;
-          startBtn.textContent = 'Starting…';
+      // Two distinct job types (fingerprint_generation / fingerprint_refresh_outdated)
+      // now, each with its own queued/running state -- see
+      // SettingsAPI.startFingerprintGeneration's comment -- so this wiring
+      // is shared code, not a shared job/active-state.
+      const wireFingerprintButton = (container, selector, refreshOutdated, inProgressLabel, idleLabel) => {
+        const btn = container.querySelector(selector);
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = 'Starting…';
           try {
-            await SettingsAPI.startFingerprintGeneration();
-            startBtn.textContent = 'Fingerprinting in Progress';
+            await SettingsAPI.startFingerprintGeneration({ refreshOutdated });
+            btn.textContent = inProgressLabel;
           } catch (e) {
             const msg = String(e.message || '');
             const alreadyRunning = msg.includes('409') || msg.includes('already');
-            startBtn.textContent = alreadyRunning ? 'Fingerprinting in Progress' : 'Error';
+            btn.textContent = alreadyRunning ? inProgressLabel : 'Error';
             if (!alreadyRunning) {
               setTimeout(() => {
-                startBtn.textContent = 'Start Fingerprinting';
-                startBtn.disabled = false;
+                btn.textContent = idleLabel;
+                btn.disabled = false;
               }, 2500);
             }
           }
         });
-      }
+      };
+      wireFingerprintButton(fingerprintStatsEl, '#ss-start-fingerprinting-btn', false, 'Fingerprinting in Progress', `Fingerprint Missing (${(missing || 0).toLocaleString()})`);
+      wireFingerprintButton(performerStatsEl, '#ss-refresh-outdated-btn', true, 'Refresh in Progress', `Refresh Outdated (${outdatedCount.toLocaleString()})`);
     } catch (e) {
       const errHtml = `<span style="color:#888;font-size:13px;">Failed to load: ${e.message}</span>`;
       performerStatsEl.innerHTML = errHtml;

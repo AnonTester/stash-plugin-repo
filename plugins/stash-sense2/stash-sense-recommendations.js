@@ -635,7 +635,7 @@
           description: 'Searches untagged Scenes on all Stash-Box endpoints',
         },
         scene_face_match: {
-          title: 'Scene Face Matches',
+          title: 'Face Recommendations',
           icon: `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm9-6l1.5-3L24 4l-1.5-1L21 0l-1 1.5L18 3l1.5 1L21 8zm-3.5-1.5L19 3l-1.5-.5L17 1l-.5 1.5L15 3l1.5.5L17 5z"/></svg>`,
           description: 'Performers identified in scenes that have none assigned yet',
         },
@@ -944,7 +944,7 @@
       upstream_studio_changes: 'Upstream Studio Changes',
       upstream_scene_changes: 'Upstream Scene Changes',
       scene_fingerprint_match: 'Scene Stash-Box Tagger',
-      scene_face_match: 'Scene Face Matches',
+      scene_face_match: 'Face Recommendations',
     };
 
     container.innerHTML = `
@@ -5788,7 +5788,26 @@
       if (sceneId) scene = await RecommendationsAPI.getSceneDetail(sceneId);
     } catch (_) {}
 
+    // sceneStreams (multiple negotiated variants -- direct file, HLS,
+    // WEBM/lower-res transcodes, same set Stash's own native player
+    // uses) lets the browser fall back past a codec it can't natively
+    // decode (e.g. HEVC), unlike a single <video src> pointed straight
+    // at paths.stream -- confirmed live: a scene playing fine in Stash's
+    // own page threw "No video with supported format and MIME type
+    // found" here because only the raw direct-file URL was offered, no
+    // fallback source. Falls back to the single paths.stream source only
+    // if sceneStreams is empty/missing (e.g. an older Stash without that
+    // field) -- same behavior as before this fix in that case.
+    const sceneStreams = Array.isArray(scene?.sceneStreams) ? scene.sceneStreams : [];
     const streamUrl = relativeUrl(scene?.paths?.stream);
+    const videoSourcesHtml = sceneStreams.length
+      ? sceneStreams.map(s => {
+          const url = relativeUrl(s.url);
+          if (!url) return '';
+          const typeAttr = s.mime_type ? ` type="${escapeHtml(s.mime_type)}"` : '';
+          return `<source src="${escapeHtml(url)}"${typeAttr} />`;
+        }).join('')
+      : (streamUrl ? `<source src="${escapeHtml(streamUrl)}" />` : '');
     const sceneTitle = scene?.title || d.scene_title || `Scene ${sceneId}`;
 
     // Same link-building convention the manual scene-identify result view
@@ -5877,8 +5896,8 @@
           <a class="ss-detail-entity-link" href="${escapeHtml(sceneHref)}" target="_blank" rel="noopener">Open in Stash</a>
         </div>
 
-        ${streamUrl
-          ? `<video class="ss-sfm-video" controls preload="metadata" src="${escapeHtml(streamUrl)}"></video>`
+        ${videoSourcesHtml
+          ? `<video class="ss-sfm-video" controls preload="metadata">${videoSourcesHtml}</video>`
           : '<div class="ss-no-image ss-sfm-no-video">No video preview available</div>'
         }
 
