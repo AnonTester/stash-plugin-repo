@@ -351,6 +351,10 @@
       return apiCall('rec_dismiss_scene_face_match', { rec_id: recId });
     },
 
+    async undismissSceneFaceMatch(recId) {
+      return apiCall('rec_undismiss_scene_face_match', { rec_id: recId });
+    },
+
     async acceptAllSceneTagOnlyChanges() {
       return apiCall('rec_accept_all_scene_tag_only_changes', {});
     },
@@ -5976,6 +5980,18 @@
     const sceneId = String(d.scene_id || '');
     const sceneHref = `/scenes/${sceneId}`;
     const persons = d.persons || [];
+    // Attached by the backend only alongside a pending group -- see
+    // _build_scene_face_match_group_for_recommendation's docstring. A
+    // dismissed match never gets re-recommended by a later rematch (by
+    // design), which previously made it invisible with no way to undo an
+    // accidental dismissal; this "show dismissed" toggle surfaces them.
+    const dismissedPersons = d.dismissed_persons || [];
+    // let, not const: the in-place dismiss/undismiss toggle below keeps
+    // this (and the toggle button's own label) in sync without a full
+    // reload -- see its own comment. The newly (un)dismissed candidate
+    // itself isn't moved into/out of the dismissed panel's own list on
+    // that path (would need constructing a whole new card), just the count.
+    let dismissedCount = d.dismissed_count || 0;
 
     container.innerHTML = '<div class="ss-loading">Loading scene details...</div>';
 
@@ -6034,7 +6050,12 @@
       return `<a href="${escapeHtml(stashDbUrl)}" target="_blank" rel="noopener" class="ss-link">View on stashdb.org</a> ${localLink}`;
     }
 
-    function renderCandidate(c) {
+    // forDismissedSection: renders the "show dismissed" panel's cards
+    // instead of the normal pending list -- an Undismiss button (with the
+    // dismissal timestamp, since that's the whole point of surfacing these
+    // at all: the user can see *when* they dismissed something and decide
+    // whether it was a mistake) instead of the pending-only Dismiss button.
+    function renderCandidate(c, forDismissedSection = false) {
       const isCandidatePending = c.status === 'pending';
       const jumpButtons = (c.top_timestamps_sec || []).slice(0, 4).map(t => (
         `<button type="button" class="ss-btn ss-btn-tiny ss-sfm-jump-btn" data-time="${t}">${formatDuration(t)}</button>`
@@ -6042,8 +6063,15 @@
       const linksHtml = sceneFaceMatchLinksHtml(c);
       // Don't pre-select a weak match: 5 or fewer frames, or under 10%
       // confidence, needs a deliberate look before it gets added to a scene.
+      // Never pre-select a dismissed candidate either -- its checkbox is
+      // disabled (uninteractive) but a disabled checkbox still matches
+      // :checked in querySelectorAll, so a pre-checked dismissed candidate
+      // would silently ride along into "Accept Selected"'s submission.
       const meetsPreselectThreshold = (c.frame_count || 0) > 5 && (c.confidence || 0) >= 0.10;
-      const preselect = c.is_best_match && meetsPreselectThreshold;
+      const preselect = !forDismissedSection && c.is_best_match && meetsPreselectThreshold;
+      const dismissedAtHtml = forDismissedSection && c.dismissed_at
+        ? `<div class="ss-sfm-candidate-dismissed-at">Dismissed ${formatRecTimestamp(c.dismissed_at)}</div>`
+        : '';
       return `
         <div class="ss-sfm-candidate${isCandidatePending ? '' : ' ss-sfm-candidate-inactive'}" data-rec-id="${c.recommendation_id}">
           <label class="ss-sfm-candidate-select">
@@ -6059,19 +6087,24 @@
           <div class="ss-sfm-candidate-name">${escapeHtmlBreakable(c.name || 'Unknown')}</div>
           <div class="ss-sfm-candidate-meta">
             ${Math.round((c.confidence || 0) * 100)}% match
-            ${!isCandidatePending ? ` &middot; <span class="ss-sfm-candidate-status">${escapeHtml(c.status)}</span>` : ''}
+            ${!isCandidatePending && !forDismissedSection ? ` &middot; <span class="ss-sfm-candidate-status">${escapeHtml(c.status)}</span>` : ''}
           </div>
+          ${dismissedAtHtml}
           ${linksHtml ? `<div class="ss-sfm-candidate-links">${linksHtml}</div>` : ''}
           ${jumpButtons ? `<div class="ss-sfm-jump-row">${jumpButtons}</div>` : ''}
-          ${isPending && isCandidatePending
+          ${isPending && isCandidatePending && !forDismissedSection
             ? `<button type="button" class="ss-btn ss-btn-tiny ss-btn-secondary ss-sfm-dismiss-one-btn" data-rec-id="${c.recommendation_id}">Dismiss</button>`
+            : ''
+          }
+          ${forDismissedSection
+            ? `<button type="button" class="ss-btn ss-btn-tiny ss-btn-secondary ss-sfm-undismiss-btn" data-rec-id="${c.recommendation_id}">Undismiss</button>`
             : ''
           }
         </div>
       `;
     }
 
-    function renderPersonColumn(person) {
+    function renderPersonColumn(person, forDismissedSection = false) {
       const frameCount = person.frame_count || 0;
       return `
         <div class="ss-sfm-person-column">
@@ -6080,7 +6113,7 @@
             <span class="ss-sfm-person-frames">(${frameCount} frame${frameCount === 1 ? '' : 's'})</span>
           </div>
           <div class="ss-sfm-person-candidates">
-            ${(person.candidates || []).map(renderCandidate).join('')}
+            ${(person.candidates || []).map(c => renderCandidate(c, forDismissedSection)).join('')}
           </div>
         </div>
       `;
@@ -6099,10 +6132,20 @@
         }
 
         <div class="ss-sfm-persons">
-          ${persons.map(renderPersonColumn).join('')}
+          ${persons.map(p => renderPersonColumn(p)).join('')}
         </div>
 
         ${isPending ? `
+          ${dismissedCount > 0 ? `
+            <div class="ss-sfm-dismissed-toggle-row">
+              <button id="ss-sfm-toggle-dismissed-btn" class="ss-btn ss-btn-secondary ss-btn-tiny">
+                Show Dismissed (${dismissedCount})
+              </button>
+            </div>
+            <div id="ss-sfm-dismissed-section" class="ss-sfm-persons ss-sfm-dismissed-persons" hidden>
+              ${dismissedPersons.map(p => renderPersonColumn(p, true)).join('')}
+            </div>
+          ` : ''}
           <div class="ss-sfm-detail-actions">
             <button id="ss-sfm-accept-btn" class="ss-btn ss-btn-primary">Accept Selected</button>
             <button id="ss-sfm-reject-all-btn" class="ss-btn ss-btn-secondary">Reject All</button>
@@ -6129,23 +6172,78 @@
 
     if (!isPending) return;
 
+    // Dismissing a candidate in the main (pending) list toggles this same
+    // button to Undismiss in place, instead of removing it -- previously
+    // the only way back was leaving the recommendation and reopening it
+    // to reach the "Show Dismissed" panel's own Undismiss button.
     container.querySelectorAll('.ss-sfm-dismiss-one-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const recId = parseInt(btn.dataset.recId, 10);
+        const dismissing = btn.textContent.trim() === 'Dismiss';
         btn.disabled = true;
         try {
-          await RecommendationsAPI.dismissSceneFaceMatch(recId);
+          if (dismissing) {
+            await RecommendationsAPI.dismissSceneFaceMatch(recId);
+          } else {
+            await RecommendationsAPI.undismissSceneFaceMatch(recId);
+          }
           const card = btn.closest('.ss-sfm-candidate');
           if (card) {
-            card.classList.add('ss-sfm-candidate-inactive');
+            card.classList.toggle('ss-sfm-candidate-inactive', dismissing);
             const cb = card.querySelector('.ss-sfm-candidate-cb');
-            if (cb) { cb.checked = false; cb.disabled = true; }
-            btn.remove();
+            if (cb) {
+              cb.disabled = dismissing;
+              if (dismissing) cb.checked = false;
+            }
           }
-          showToast('Candidate dismissed.', 'info');
+          btn.textContent = dismissing ? 'Undismiss' : 'Dismiss';
+          dismissedCount += dismissing ? 1 : -1;
+          const toggleBtn = container.querySelector('#ss-sfm-toggle-dismissed-btn');
+          if (toggleBtn) {
+            const showing = !container.querySelector('#ss-sfm-dismissed-section')?.hidden;
+            toggleBtn.textContent = `${showing ? 'Hide' : 'Show'} Dismissed (${dismissedCount})`;
+          }
+          showToast(dismissing ? 'Candidate dismissed.' : 'Candidate restored.', 'info');
         } catch (e) {
-          showToast(`Failed to dismiss: ${e.message}`, 'error');
+          showToast(`Failed to ${dismissing ? 'dismiss' : 'undismiss'}: ${e.message}`, 'error');
+        } finally {
           btn.disabled = false;
+        }
+      });
+    });
+
+    const toggleDismissedBtn = container.querySelector('#ss-sfm-toggle-dismissed-btn');
+    if (toggleDismissedBtn) {
+      toggleDismissedBtn.addEventListener('click', () => {
+        const section = container.querySelector('#ss-sfm-dismissed-section');
+        if (!section) return;
+        const nowShowing = section.hidden;
+        section.hidden = !nowShowing;
+        toggleDismissedBtn.textContent = nowShowing
+          ? `Hide Dismissed (${dismissedCount})`
+          : `Show Dismissed (${dismissedCount})`;
+      });
+    }
+
+    container.querySelectorAll('.ss-sfm-undismiss-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const recId = parseInt(btn.dataset.recId, 10);
+        btn.disabled = true;
+        btn.textContent = 'Undismissing...';
+        try {
+          await RecommendationsAPI.undismissSceneFaceMatch(recId);
+          showToast('Match restored -- reloading...', 'info');
+          // A full re-fetch is simplest and correct: undismissing can move
+          // a candidate back into the pending person list (possibly a
+          // *new* person column if that person's every other candidate was
+          // also dismissed), which is more than a DOM-surgery update here
+          // could cleanly express.
+          const fresh = await RecommendationsAPI.getOne(rec.id);
+          await renderSceneFaceMatchDetail(container, fresh);
+        } catch (e) {
+          showToast(`Failed to undismiss: ${e.message}`, 'error');
+          btn.disabled = false;
+          btn.textContent = 'Undismiss';
         }
       });
     });

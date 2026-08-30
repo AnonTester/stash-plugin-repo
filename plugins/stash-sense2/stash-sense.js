@@ -579,9 +579,19 @@
           return;
         }
 
-        // Build set of StashDB IDs already tagged on this scene
+        // Build set of StashDB IDs already tagged on this scene. Reuse
+        // results._scenePerformers when a fresh identifyScene() call
+        // already fetched it (avoids a duplicate query); a stored result
+        // (fingerprint_get_scene_result, the common "instant" path -- see
+        // handleIdentifyFullVideo) never has that attached at all, so
+        // without this live fallback every performer looked already
+        // untagged regardless of the scene's actual current state --
+        // confirmed live: "Add to Scene" showing for a performer already
+        // on the scene. Fetching fresh here also self-heals staleness in
+        // the *stored* already_tagged flag itself (computed once, at
+        // identify time, never refreshed just from viewing the result).
         const taggedStashDBIds = new Set();
-        const scenePerformers = results._scenePerformers || [];
+        const scenePerformers = results._scenePerformers || await this.getScenePerformerStashDBIds(sceneId);
         const scenePerformerLocalIds = new Set();
         for (const p of scenePerformers) {
           scenePerformerLocalIds.add(p.id);
@@ -1678,28 +1688,28 @@
           return;
         }
 
+        // Only faces with at least one database match get their own card --
+        // a card just saying "no match" for every unmatched face detected
+        // in a busy image was pure noise. If literally nothing in the image
+        // matched anything, say so once instead of per empty card.
+        const matchedFaces = results.faces.filter(f => f.matches && f.matches.length > 0);
+
         resultsDiv.innerHTML = `
           <p class="ss-summary">
             Detected <strong>${results.face_count}</strong> face(s) in image.
           </p>
+          ${matchedFaces.length === 0 ? '<p class="ss-no-match">No matches found in database</p>' : ''}
           <div class="ss-persons"></div>
         `;
 
         const personsDiv = resultsDiv.querySelector('.ss-persons');
 
-        for (let i = 0; i < results.faces.length; i++) {
-          const face = results.faces[i];
+        for (let i = 0; i < matchedFaces.length; i++) {
+          const face = matchedFaces[i];
           const personDiv = document.createElement('div');
           personDiv.className = 'ss-person';
 
-          if (!face.matches || face.matches.length === 0) {
-            personDiv.innerHTML = `
-              <div class="ss-person-header">
-                <span class="ss-person-label">Face ${i + 1}</span>
-              </div>
-              <p class="ss-no-match">No match found in database</p>
-            `;
-          } else {
+          {
             const match = face.matches[0];
             const confidence = this.distanceToConfidence(match.distance);
             const confidenceClass = SS.getConfidenceClass(confidence);
@@ -1971,28 +1981,45 @@
           return;
         }
 
+        // Build set of StashDB IDs (and local performer ids) already
+        // tagged on this scene -- fetched live every render, same fix as
+        // renderResults' own scenePerformers lookup (see its comment):
+        // this endpoint's response never carries an already_tagged flag on
+        // face.matches at all, so without this every performer looked
+        // untagged regardless of the scene's actual current state --
+        // confirmed live: "Add to Scene" showing for a performer already
+        // on the scene (scene 5525, performer already added as Jenny).
+        const taggedStashDBIds = new Set();
+        const scenePerformerLocalIds = new Set();
+        for (const p of await this.getScenePerformerStashDBIds(sceneId)) {
+          scenePerformerLocalIds.add(p.id);
+          for (const sid of (p.stash_ids || [])) {
+            if (sid.endpoint === 'https://stashdb.org/graphql') {
+              taggedStashDBIds.add(sid.stash_id);
+            }
+          }
+        }
+
+        // Only faces with at least one database match get their own card --
+        // see renderImageResults' identical comment for why.
+        const matchedFaces = results.faces.filter(f => f.matches && f.matches.length > 0);
+
         resultsDiv.innerHTML = `
           <p class="ss-summary">
             Detected <strong>${results.face_count}</strong> face(s) in frame.
           </p>
+          ${matchedFaces.length === 0 ? '<p class="ss-no-match">No matches found in database</p>' : ''}
           <div class="ss-persons"></div>
         `;
 
         const personsDiv = resultsDiv.querySelector('.ss-persons');
 
-        for (let i = 0; i < results.faces.length; i++) {
-          const face = results.faces[i];
+        for (let i = 0; i < matchedFaces.length; i++) {
+          const face = matchedFaces[i];
           const personDiv = document.createElement('div');
           personDiv.className = 'ss-person';
 
-          if (!face.matches || face.matches.length === 0) {
-            personDiv.innerHTML = `
-              <div class="ss-person-header">
-                <span class="ss-person-label">Face ${i + 1}</span>
-              </div>
-              <p class="ss-no-match">No match found in database</p>
-            `;
-          } else {
+          {
             const match = face.matches[0];
             const confidence = this.distanceToConfidence(match.distance);
             const confidenceClass = SS.getConfidenceClass(confidence);
@@ -2000,6 +2027,13 @@
             const imgStashboxUrl = this._stashboxPerformerUrl(imgEndpoint, match.stashdb_id);
             const imgGraphqlUrl = this._stashboxGraphqlUrl(imgEndpoint);
             const localPerformer = await this._resolveLibraryPerformer(match, imgGraphqlUrl);
+
+            // Check if already tagged (from API flag or local cross-reference)
+            // -- same logic as renderResults' _renderPerson, see the
+            // taggedStashDBIds/scenePerformerLocalIds fetch above.
+            const isAlreadyTagged = match.already_tagged || taggedStashDBIds.has(match.stashdb_id);
+            const isLocallyTagged = localPerformer && scenePerformerLocalIds.has(localPerformer.id);
+            const showAlreadyTagged = isAlreadyTagged || isLocallyTagged;
 
             personDiv.innerHTML = `
               <div class="ss-person-header">
@@ -2017,7 +2051,9 @@
                     ${this._matchLinksHtml(match, imgStashboxUrl, imgEndpoint)}
                   </div>
                   <div class="ss-actions">
-                    ${localPerformer
+                    ${showAlreadyTagged
+                      ? `<span class="ss-local-status ss-already-tagged">Already tagged on scene</span>`
+                      : localPerformer
                       ? `<button class="ss-btn ss-btn-add"
                                  data-performer-id="${localPerformer.id}"
                                  data-performer-name="${SS.escapeHtml ? SS.escapeHtml(localPerformer.name) : localPerformer.name}"
@@ -2058,6 +2094,9 @@
                 const altUrl = this._stashboxPerformerUrl(altEp, m.stashdb_id);
                 const altGraphqlUrl = this._stashboxGraphqlUrl(altEp);
                 const altLocalPerformer = await this._resolveLibraryPerformer(m, altGraphqlUrl);
+                const altIsAlreadyTagged = m.already_tagged || taggedStashDBIds.has(m.stashdb_id);
+                const altIsLocallyTagged = altLocalPerformer && scenePerformerLocalIds.has(altLocalPerformer.id);
+                const altShowAlreadyTagged = altIsAlreadyTagged || altIsLocallyTagged;
                 const li = document.createElement('li');
                 li.className = 'ss-alt-match-item';
                 li.innerHTML = `
@@ -2073,7 +2112,9 @@
                         ${this._matchLinksHtml(m, altUrl, altEp)}
                       </div>
                       <div class="ss-actions ss-alt-match-actions">
-                        ${altLocalPerformer
+                        ${altShowAlreadyTagged
+                          ? `<span class="ss-local-status ss-already-tagged">Already tagged on scene</span>`
+                          : altLocalPerformer
                           ? `<button class="ss-btn ss-btn-add ss-btn-sm"
                                      data-performer-id="${altLocalPerformer.id}"
                                      data-performer-name="${SS.escapeHtml ? SS.escapeHtml(altLocalPerformer.name) : altLocalPerformer.name}"
