@@ -701,7 +701,7 @@
         resultsDiv.querySelectorAll('.ss-btn-create').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const { endpoint, stashdbId, sceneId: targetSceneId, source, name, country, imageUrl, catalogueUrl, profileUrl } = btn.dataset;
+            const { endpoint, stashdbId, sceneId: targetSceneId, source, name, country, imageUrl, catalogueUrl, profileUrl, originalName } = btn.dataset;
             btn.disabled = true;
             btn.textContent = 'Creating...';
 
@@ -719,6 +719,7 @@
                       source, name, country: country || undefined,
                       image_url: imageUrl || undefined, catalogue_url: catalogueUrl || undefined,
                       profile_url: profileUrl || undefined,
+                      original_name: originalName || undefined,
                       ...(staged ? {} : { scene_id: targetSceneId }),
                       sidecar_url: settings.sidecarUrl,
                     })
@@ -832,7 +833,8 @@
                     data-country="${esc(match.country)}"
                     data-image-url="${esc(match.image_url)}"
                     data-catalogue-url="${esc(match.catalogue_url)}"
-                    data-profile-url="${esc(match.profile_url)}"`;
+                    data-profile-url="${esc(match.profile_url)}"
+                    data-original-name="${esc(match.original_name)}"`;
       },
 
       // Build the "View on ..." links for a match. Catalogue (non-stash-box)
@@ -901,6 +903,18 @@
           links.unshift(`<a href="${match.profile_url}" target="_blank" rel="noopener" class="ss-link">${label}</a>`);
         }
         return links.join(' ');
+      },
+
+      // data-* attributes only, for a third-party plugin to read this
+      // match's identity without reconstructing universal_id itself. Empty
+      // string for a local-only match (already_tagged local library
+      // performer, no universal_id) so a reader knows to treat it as
+      // nothing to cross-reference. This plugin never reads these back.
+      _reviewDataAttrs(match) {
+        const uid = match.universal_id || '';
+        const escapedUid = SS.escapeHtml ? SS.escapeHtml(uid) : uid;
+        const idx = (match.matched_embedding_index ?? '');
+        return `data-ss-universal-id="${escapedUid}" data-ss-embedding-index="${idx}"`;
       },
 
       // Resolve a match to its local Stash performer, if any is already in
@@ -987,12 +1001,13 @@
             <span class="ss-person-frames">${person.frame_count} appearances</span>
             ${showAlreadyTagged ? '<span class="ss-tagged-badge">Tagged</span>' : ''}
           </div>
-          <div class="ss-match">
+          <div class="ss-match" ${this._reviewDataAttrs(match)}>
             <div class="ss-match-image">
               ${match.image_url ? `<img src="${SS.thumbnailUrl(match.image_url)}" alt="${match.name}" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('ss-thumb-landscape')" />` : '<div class="ss-no-image">No image</div>'}
             </div>
             <div class="ss-match-info">
               <h4>${match.name}</h4>
+              ${match.original_name ? `<div class="ss-match-original-name">aka ${SS.escapeHtml ? SS.escapeHtml(match.original_name) : match.original_name}</div>` : ''}
               <div class="ss-confidence ${confidenceClass}">${confidence}% match</div>
               ${match.country ? `<div class="ss-country">${match.country}</div>` : ''}
               <div class="ss-links">
@@ -1057,12 +1072,13 @@
             const li = document.createElement('li');
             li.className = 'ss-alt-match-item';
             li.innerHTML = `
-              <div class="ss-match">
+              <div class="ss-match" ${this._reviewDataAttrs(m)}>
                 <div class="ss-match-image">
                   ${m.image_url ? `<img src="${SS.thumbnailUrl(m.image_url)}" alt="${m.name}" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('ss-thumb-landscape')" />` : '<div class="ss-no-image">No image</div>'}
                 </div>
                 <div class="ss-match-info">
                   <h4>${m.name}</h4>
+                  ${m.original_name ? `<div class="ss-match-original-name">aka ${SS.escapeHtml ? SS.escapeHtml(m.original_name) : m.original_name}</div>` : ''}
                   <div class="ss-confidence ${altConfClass}">${altConf}% match</div>
                   ${altShowAlreadyTagged ? '<span class="ss-tagged-badge ss-tagged-badge-sm">Tagged</span>' : ''}
                   ${m.country ? `<div class="ss-country">${m.country}</div>` : ''}
@@ -1787,6 +1803,7 @@
                 </div>
                 <div class="ss-match-info">
                   <h4>${match.name}</h4>
+                  ${match.original_name ? `<div class="ss-match-original-name">aka ${SS.escapeHtml ? SS.escapeHtml(match.original_name) : match.original_name}</div>` : ''}
                   <div class="ss-confidence ${confidenceClass}">${confidence}% match</div>
                   ${match.country ? `<div class="ss-country">${match.country}</div>` : ''}
                   <div class="ss-links">
@@ -1843,6 +1860,7 @@
                     </div>
                     <div class="ss-match-info">
                       <h4>${m.name}</h4>
+                      ${m.original_name ? `<div class="ss-match-original-name">aka ${SS.escapeHtml ? SS.escapeHtml(m.original_name) : m.original_name}</div>` : ''}
                       <div class="ss-confidence ${altConfClass}">${altConf}% match</div>
                       ${m.country ? `<div class="ss-country">${m.country}</div>` : ''}
                       <div class="ss-links">
@@ -1917,7 +1935,7 @@
         resultsDiv.querySelectorAll('.ss-btn-create').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const { endpoint, stashdbId, imageId: targetImageId, source, name, country, imageUrl, catalogueUrl, profileUrl } = btn.dataset;
+            const { endpoint, stashdbId, imageId: targetImageId, source, name, country, imageUrl, catalogueUrl, profileUrl, originalName } = btn.dataset;
             btn.disabled = true;
             btn.textContent = 'Creating...';
 
@@ -1935,6 +1953,7 @@
                       source, name, country: country || undefined,
                       image_url: imageUrl || undefined, catalogue_url: catalogueUrl || undefined,
                       profile_url: profileUrl || undefined,
+                      original_name: originalName || undefined,
                       ...(staged ? {} : { image_id: targetImageId }),
                       sidecar_url: settings.sidecarUrl,
                     })
@@ -2098,12 +2117,13 @@
               <div class="ss-person-header">
                 <span class="ss-person-label">Face ${i + 1}</span>
               </div>
-              <div class="ss-match">
+              <div class="ss-match" ${this._reviewDataAttrs(match)}>
                 <div class="ss-match-image">
                   ${match.image_url ? `<img src="${SS.thumbnailUrl(match.image_url)}" alt="${match.name}" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('ss-thumb-landscape')" />` : '<div class="ss-no-image">No image</div>'}
                 </div>
                 <div class="ss-match-info">
                   <h4>${match.name}</h4>
+                  ${match.original_name ? `<div class="ss-match-original-name">aka ${SS.escapeHtml ? SS.escapeHtml(match.original_name) : match.original_name}</div>` : ''}
                   <div class="ss-confidence ${confidenceClass}">${confidence}% match</div>
                   ${match.country ? `<div class="ss-country">${match.country}</div>` : ''}
                   <div class="ss-links">
@@ -2159,12 +2179,13 @@
                 const li = document.createElement('li');
                 li.className = 'ss-alt-match-item';
                 li.innerHTML = `
-                  <div class="ss-match">
+                  <div class="ss-match" ${this._reviewDataAttrs(m)}>
                     <div class="ss-match-image">
                       ${m.image_url ? `<img src="${SS.thumbnailUrl(m.image_url)}" alt="${m.name}" loading="lazy" onload="if(this.naturalWidth>this.naturalHeight)this.parentElement.classList.add('ss-thumb-landscape')" />` : '<div class="ss-no-image">No image</div>'}
                     </div>
                     <div class="ss-match-info">
                       <h4>${m.name}</h4>
+                      ${m.original_name ? `<div class="ss-match-original-name">aka ${SS.escapeHtml ? SS.escapeHtml(m.original_name) : m.original_name}</div>` : ''}
                       <div class="ss-confidence ${altConfClass}">${altConf}% match</div>
                       ${m.country ? `<div class="ss-country">${m.country}</div>` : ''}
                       <div class="ss-links">
@@ -2241,7 +2262,7 @@
         resultsDiv.querySelectorAll('.ss-btn-create').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const { endpoint, stashdbId, sceneId: targetSceneId, source, name, country, imageUrl, catalogueUrl, profileUrl } = btn.dataset;
+            const { endpoint, stashdbId, sceneId: targetSceneId, source, name, country, imageUrl, catalogueUrl, profileUrl, originalName } = btn.dataset;
             btn.disabled = true;
             btn.textContent = 'Creating...';
 
@@ -2259,6 +2280,7 @@
                       source, name, country: country || undefined,
                       image_url: imageUrl || undefined, catalogue_url: catalogueUrl || undefined,
                       profile_url: profileUrl || undefined,
+                      original_name: originalName || undefined,
                       ...(staged ? {} : { scene_id: targetSceneId }),
                       sidecar_url: settings.sidecarUrl,
                     })

@@ -45,10 +45,10 @@
     author: AnonTester
 - id: stash-sense2
   name: Stash Sense 2
-  version: "0.28.1"
-  date: "2026-09-27 01:02:53"
-  path: releases/stash-sense2-0.28.1.zip
-  sha256: 1c6189e0de09dfcd0cc652bafcbed213e4150e6577e25e1437fc0363df7a37a8
+  version: "0.28.8"
+  date: "2026-09-28 00:30:56"
+  path: releases/stash-sense2-0.28.8.zip
+  sha256: 72a909441e556693952ea13251feaeccd8ff4e417e1afc07f6dc375fa2938153
   requires: []
   metadata:
     description: ML-powered performer identification and library curation --
