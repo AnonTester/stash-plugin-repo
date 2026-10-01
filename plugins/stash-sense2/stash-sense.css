@@ -4236,12 +4236,31 @@ a.ss-detail-entity-link:hover {
   overflow-wrap: break-word;
 }
 
+.ss-sfm-video-wrap {
+  position: relative;
+}
+
 .ss-sfm-video {
   width: 100%;
   max-height: 480px;
   border-radius: 0.5rem;
   background: #000;
   display: block;
+}
+
+/* Jump-to-frame bbox overlay -- percentage-based (not pixel-based) so it
+   tracks the video's own rendered size on window resize with no JS
+   recalculation, same "position: relative parent + percentage child"
+   technique, just without needing the drag-select overlay's own fixed-
+   viewport/resize-aware math (this box isn't interactive, doesn't need
+   to survive a resize mid-display the way an active drag selection
+   would). Same accent color as .ss-select-box, for visual consistency
+   between this plugin's two detected-face-box features. */
+.ss-sfm-bbox-overlay {
+  position: absolute;
+  border: 2px solid #4dabf7;
+  border-radius: 2px;
+  pointer-events: none;
 }
 
 .ss-sfm-no-video {
@@ -4385,7 +4404,44 @@ a.ss-detail-entity-link:hover {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: flex-end;
   gap: 0.3rem;
+}
+
+.ss-sfm-jump-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+/* Left empty by this plugin -- a third-party plugin can fill it in
+   with a crop <img>+link using the data-ss-universal-id/data-ss-
+   embedding-index attributes carried alongside it (see renderCandidate's
+   own comment in stash-sense-recommendations.js). :empty keeps an
+   unfilled slot from taking up any visible space rather than showing a
+   blank placeholder box forever. */
+.ss-sfm-crop-slot {
+  /* inline-block, not the div default's block -- this class is also
+     reused on an <a> (the local-performer cover-photo fallback, an
+     inline element by default), where width/height would otherwise be
+     silently ignored. */
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ss-sfm-crop-slot:empty {
+  display: none;
+}
+
+.ss-sfm-crop-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .ss-btn-tiny {
