@@ -53,6 +53,11 @@ for PLUGIN_PATH in "${PLUGINS_DIR}"/*/; do
   # stash-sense2's stash_sense_backend.py) -- nullglob (set above) makes
   # this a no-op for plugins with no .py files.
   (cd "$PLUGIN_PATH" && zip -j "$ZIP_ABS" *.yml *.js *.css *.py)
+  # A plugin may also ship a userscripts/ directory (stash-sense2's manifest serves
+  # it as a plugin asset) -- kept with its directory structure, unlike the flat files above.
+  if [[ -d "${PLUGIN_PATH}userscripts" ]]; then
+    (cd "$PLUGIN_PATH" && zip -r "$ZIP_ABS" userscripts)
+  fi
 
   # ── Compute SHA256 ─────────────────────────────────────────────────────────
   SHA256=$(sha256sum "${ZIP_PATH}" | cut -d' ' -f1)
@@ -100,6 +105,7 @@ PYEOF
   echo "  index.yml updated"
 
   git add "${ZIP_PATH}" "${INDEX}" "${PLUGIN_PATH}"*.yml "${PLUGIN_PATH}"*.js "${PLUGIN_PATH}"*.css "${PLUGIN_PATH}"*.py
+  if [[ -d "${PLUGIN_PATH}userscripts" ]]; then git add "${PLUGIN_PATH}userscripts"; fi
 
   # ── Prune old releases for this plugin — keep the ${MAX_KEEP} most recent ──
   OLD_ZIPS=$(ls "${RELEASES_DIR}/${PLUGIN_ID}"-*.zip 2>/dev/null \
