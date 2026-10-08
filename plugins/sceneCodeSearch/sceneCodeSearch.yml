@@ -1,0 +1,15 @@
+name: Scene Code Search
+description: >-
+  Makes every scene search box (the Scenes page search bar, and the scene
+  picker used on groups/markers/filter criteria) also match the scene's
+  Studio Code, which Stash's plain search ignores. Works by rewriting
+  outgoing FindScenes/FindScenesForSelect GraphQL requests when a scene's
+  code matches the search term.
+version: 1.0.0
+ui:
+  javascript:
+    - sceneCodeSearch.js
+settings:
+  minQueryLength:
+    displayName: Minimum search length (characters)
+    type: NUMBER

@@ -21,6 +21,7 @@ Updates are applied the same way: return to **Settings → Plugins**, check for 
 |---|---|
 | [Performer Refresh](#performer-refresh) | Adds a refresh button next to the stash-box ID on performer pages, replicating the Update Performer modal from the Performer Tagger. |
 | [Performer Disambiguation Search](#performer-disambiguation-search) | Makes performer search/autocomplete also match the Disambiguation field, not just name and aliases. |
+| [Scene Code Search](#scene-code-search) | Makes scene search/autocomplete also match the Studio Code, which the plain search ignores. |
 | [Scene URL Enhancements](#scene-url-enhancements) | Adds an open-in-new-tab button to scene URLs, fixes their field width, and can relocate them to the Details tab. |
 | [Stash Sense 2](#stash-sense-2) | ML-powered performer identification and library curation — face recognition, duplicate detection, and upstream sync. Requires a separate sidecar container. |
 
@@ -86,6 +87,32 @@ Extends every performer search/autocomplete in the Stash UI to also match the **
 3. Restart Stash or reload plugins
 
 See [`plugins/performerDisambiguationSearch/README.md`](plugins/performerDisambiguationSearch/README.md) for how it works and known limitations.
+
+---
+
+## Scene Code Search
+
+Extends every scene search in the Stash UI to also match the scene's **Studio Code**, which Stash's plain search box ignores (it only looks at title, details, path, etc.). Covers the search box on the Scenes page and the scene picker used on groups, markers and filter criteria.
+
+### Settings
+
+- **Minimum search length (characters)** — search terms shorter than this are left as a plain search (default: 2 if unset/0).
+
+### Installation
+
+**Via Plugin Source (recommended):** install from the table above once this repo is added as a source.
+
+**Manual:**
+
+1. Download the latest `sceneCodeSearch-*.zip` from [`releases/`](releases/)
+2. Extract the zip into your Stash plugins directory so the files land at:
+   ```
+   <plugins-dir>/sceneCodeSearch/sceneCodeSearch.yml
+   <plugins-dir>/sceneCodeSearch/sceneCodeSearch.js
+   ```
+3. Restart Stash or reload plugins
+
+See [`plugins/sceneCodeSearch/README.md`](plugins/sceneCodeSearch/README.md) for how it works and known limitations.
 
 ---
 

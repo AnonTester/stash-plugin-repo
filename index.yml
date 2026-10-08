@@ -28,6 +28,22 @@
       - performer
       - search
     author: AnonTester
+- id: sceneCodeSearch
+  name: Scene Code Search
+  version: "1.0.0"
+  date: "2026-10-08 18:16:03"
+  path: releases/sceneCodeSearch-1.0.0.zip
+  sha256: 885828c34061c33bf2c785a95a53c124aae7c1b9e4adca84ee50f2a69fe917dd
+  requires: []
+  metadata:
+    description: Makes every scene search box (Scenes page, and the scene picker
+      on groups/markers/filters) also match the scene's Studio Code, not just
+      title, details and path.
+    url: https://github.com/AnonTester/stash-plugin-repo/tree/main/plugins/sceneCodeSearch
+    tags:
+      - scene
+      - search
+    author: AnonTester
 - id: sceneUrlEnhancements
   name: Scene URL Enhancements
   version: "1.0.0"
