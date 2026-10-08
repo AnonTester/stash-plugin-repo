@@ -10,18 +10,41 @@
 
   let settings = { ...DEFAULTS };
 
-  // Builds a performer_filter that OR's name/aliases/disambiguation together,
-  // matching the behaviour of the plain "q" search but extended to disambiguation.
-  function buildOrFilter(term) {
-    return {
-      name: { value: term, modifier: "INCLUDES" },
-      OR: {
-        aliases: { value: term, modifier: "INCLUDES" },
+  // Stash's INCLUDES modifier ORs together the words of a multi-word value, so
+  // the term is split into words here and every word has to match somewhere
+  // (name, aliases or disambiguation - different words may match different
+  // fields), mirroring how the plain "q" search treats multiple words.
+  //
+  // A filter node can only carry one AND/OR/NOT, so "every word matches one of
+  // three fields" (an AND of ORs) can't be written directly. Via De Morgan it
+  // is expressed as: NOT(word1 matches nothing OR word2 matches nothing OR ...),
+  // where "matches nothing" is name/aliases/disambiguation all EXCLUDES the
+  // word (fields within one node are AND'd together).
+  function buildFilter(term) {
+    const words = term.split(/\s+/).map((w) => w.replace(/^"+|"+$/g, "")).filter(Boolean);
+    if (words.length <= 1) {
+      const word = words[0] || term;
+      return {
+        name: { value: word, modifier: "INCLUDES" },
         OR: {
-          disambiguation: { value: term, modifier: "INCLUDES" },
+          aliases: { value: word, modifier: "INCLUDES" },
+          OR: {
+            disambiguation: { value: word, modifier: "INCLUDES" },
+          },
         },
-      },
-    };
+      };
+    }
+
+    const matchesNothing = (word) => ({
+      name: { value: word, modifier: "EXCLUDES" },
+      aliases: { value: word, modifier: "EXCLUDES" },
+      disambiguation: { value: word, modifier: "EXCLUDES" },
+    });
+    let chain = matchesNothing(words[words.length - 1]);
+    for (let i = words.length - 2; i >= 0; i--) {
+      chain = { ...matchesNothing(words[i]), OR: chain };
+    }
+    return { NOT: chain };
   }
 
   // The frontend always sends performer_filter as `{}` when no advanced
@@ -44,7 +67,7 @@
     const term = filter && typeof filter.q === "string" ? filter.q.trim() : "";
     if (!term || term.length < settings.minQueryLength) return false;
 
-    variables.performer_filter = buildOrFilter(term);
+    variables.performer_filter = buildFilter(term);
     // The server ignores `q` once performer_filter is set, but clear it
     // explicitly so behaviour doesn't depend on that being the case.
     variables.filter = { ...filter, q: "" };

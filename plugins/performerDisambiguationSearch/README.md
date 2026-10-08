@@ -36,11 +36,15 @@ sends to the existing GraphQL API.
 To turn the feature off entirely, use the plugin's own "Disable" button in
 Settings > Plugins (no extra "enabled" toggle is needed).
 
-## Known limitation
+## Multiple search words
 
-Stash's `INCLUDES` string filter matches multi-word search terms by OR-ing
-the individual words together rather than requiring the exact phrase (this is
-existing Stash behaviour for any field, not something this plugin changes).
-So searching "resident evil" will also surface anything containing just
-"evil" (e.g. a performer disambiguated "Devil May Cry" or "The Evil Within").
-Single-word searches (e.g. "cyber", "resident") match as a normal substring.
+A search with several space-separated words only returns performers matching
+**every** word, where each word may be found in a different field (e.g.
+"alexis 1988" matches a performer named Alexis Love disambiguated "b. 1988").
+Stash's own `INCLUDES` modifier would OR the words together, so the plugin
+splits the term into words itself and combines them with `NOT`/`OR`/`EXCLUDES`
+(De Morgan), since a single filter node can only carry one AND/OR/NOT.
+
+Single-word searches are a plain substring match across name, aliases and
+disambiguation. Quoted phrases are not treated specially: the quotes are
+dropped and the words are matched individually.

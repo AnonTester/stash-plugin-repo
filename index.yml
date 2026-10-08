@@ -14,10 +14,10 @@
     author: AnonTester
 - id: performerDisambiguationSearch
   name: Performer Disambiguation Search
-  version: "1.0.0"
-  date: "2026-06-27 23:21:05"
-  path: releases/performerDisambiguationSearch-1.0.0.zip
-  sha256: 257f756b01dcbc5aa71b86ca2cce4c109ddaf465508e4f28a85e3011d081084a
+  version: "1.0.1"
+  date: "2026-10-08 18:23:21"
+  path: releases/performerDisambiguationSearch-1.0.1.zip
+  sha256: 7db1c070db0ca58d06c02aff7cce4416500725c84401326f12b9c967f0696949
   requires: []
   metadata:
     description: Makes every performer search box (Performers page, and the

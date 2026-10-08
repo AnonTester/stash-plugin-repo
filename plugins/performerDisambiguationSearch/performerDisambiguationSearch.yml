@@ -6,7 +6,7 @@ description: >-
   Works by rewriting the outgoing FindPerformers/FindPerformersForSelect
   GraphQL requests to use an OR'd name/aliases/disambiguation filter instead
   of the default name-only search.
-version: 1.0.0
+version: 1.0.1
 ui:
   javascript:
     - performerDisambiguationSearch.js
