@@ -6,7 +6,7 @@ description: >-
   searches the reversed word order (First Last <-> Last First), and ranks the
   rest by how well name/aliases match. Only JAVStash performer searches are
   affected: scene searches and the other stash-boxes are left alone.
-version: 1.0.0
+version: 1.0.1
 ui:
   javascript:
     - javstashPerformerSearchCleanup.js

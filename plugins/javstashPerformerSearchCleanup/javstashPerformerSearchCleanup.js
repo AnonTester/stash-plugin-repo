@@ -22,6 +22,7 @@
 
   // Only this stash-box's performer search is filtered (substring match on the endpoint URL).
   const ENDPOINT = 'javstash.org';
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const KEEP_SCORE = 0.78;
   const LOG = '[javstash-performer-search-cleanup]';
 
@@ -116,6 +117,8 @@
       const query = v.input && v.input.query;
       if (!endpoint || typeof query !== 'string' || !query.trim()) return null;
       if (!endpoint.includes(ENDPOINT)) return null;
+      // A stash-box ID is an exact lookup (e.g. Performer Refresh), not a name search: leave it alone.
+      if (UUID_RE.test(query.trim())) return null;
       return body;
     } catch (e) {
       return null;

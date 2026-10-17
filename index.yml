@@ -80,10 +80,10 @@
     author: AnonTester
 - id: javstashPerformerSearchCleanup
   name: JAVStash Performer Search Cleanup
-  version: "1.0.0"
-  date: "2026-10-17 00:48:02"
-  path: releases/javstashPerformerSearchCleanup-1.0.0.zip
-  sha256: 2e89b457bdaa8efece3332a8202d18825632e79bbebb7bd45d0e369f60bb2912
+  version: "1.0.1"
+  date: "2026-10-17 19:21:12"
+  path: releases/javstashPerformerSearchCleanup-1.0.1.zip
+  sha256: b111c95e59155c1082b52787b33b62ec9bd0feec774666f9bbef70aa05f973ea
   requires: []
   metadata:
     description: Cleans up performer searches against the JAVStash stash-box
