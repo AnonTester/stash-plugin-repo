@@ -1,9 +1,10 @@
 name: Scene Refresh
 description: >-
   Adds a refresh button next to each stash-box ID on a scene's File Info and
-  Edit tabs. It scrapes (or re-scrapes) exactly that stash-box scene from its
-  own endpoint and lets you pick, field by field, what to update.
-version: 1.0.0
+  Edit tabs. It runs Stash's own scene query for exactly that stash-box ID and
+  opens Stash's own scrape results dialog, so you review and apply the result
+  the way you do for any other scrape.
+version: 2.0.0
 ui:
   javascript:
     - scene-refresh.js

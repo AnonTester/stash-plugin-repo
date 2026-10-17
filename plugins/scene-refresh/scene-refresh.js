@@ -33,48 +33,6 @@
     return data?.findScene;
   }
 
-  async function fetchScene(id) {
-    const data = await gql(
-      `query SRFindScene($id: ID!) {
-        findScene(id: $id) {
-          id title code date director details urls
-          studio { id name }
-          performers { id name }
-          tags { id name }
-          stash_ids { endpoint stash_id }
-          paths { screenshot }
-        }
-      }`,
-      { id }
-    );
-    return data?.findScene;
-  }
-
-  // Scrapes exactly one stash-box scene by its ID (input.query takes the stash-box UUID, which the
-  // stash-box looks up directly). Returns the ScrapedScene whose remote_site_id is that ID.
-  async function fetchScraped(remoteStashId, endpoint) {
-    const data = await gql(
-      `query SRScrapeScene($source: ScraperSourceInput!, $input: ScrapeSingleSceneInput!) {
-        scrapeSingleScene(source: $source, input: $input) {
-          title code date director details urls image remote_site_id
-          studio { name stored_id }
-          performers { name stored_id }
-          tags { name stored_id }
-        }
-      }`,
-      { source: { stash_box_endpoint: endpoint }, input: { query: remoteStashId } }
-    );
-    const list = data?.scrapeSingleScene ?? [];
-    return list.find((s) => s.remote_site_id === remoteStashId) ?? list[0] ?? null;
-  }
-
-  async function saveUpdate(input) {
-    const data = await gql(
-      `mutation SRSceneUpdate($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }`,
-      { input }
-    );
-    return data?.sceneUpdate;
-  }
 
   // ── Small helpers ────────────────────────────────────────────────────────
 
@@ -113,181 +71,85 @@
     return e;
   }
 
-  const isBlank = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
-  const sameText = (a, b) => String(a ?? "").trim() === String(b ?? "").trim();
+  // ── Driving Stash's own scrape flow ──────────────────────────────────────
 
-  // A visible Save button means the scene Edit form is open (its unsaved changes are lost on reload).
-  function editFormOpen() {
-    return Array.from(document.querySelectorAll("button.edit-button")).some(
-      (b) => /^save$/i.test((b.textContent || "").trim()) && b.offsetParent !== null
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function waitFor(fn, what, timeout = 15000) {
+    const end = Date.now() + timeout;
+    for (;;) {
+      const v = fn();
+      if (v) return v;
+      if (Date.now() > end) throw new Error(`Timed out waiting for ${what}`);
+      await sleep(50);
+    }
+  }
+
+  const visible = (e) => e && e.offsetParent !== null;
+  const visibleModal = () => document.querySelector(".modal.show");
+
+  function scrapeWithButton() {
+    return Array.from(document.querySelectorAll("button.dropdown-toggle")).find(
+      (b) => visible(b) && /^scrape with/i.test((b.textContent || "").trim())
     );
   }
 
-  // ── Dialog ───────────────────────────────────────────────────────────────
-
-  // One entry per updatable field. `checkedByDefault` is true when the scraped value is present and
-  // differs from the scene's current value. `apply(input)` writes the chosen value into the update input.
-  function buildFields(scene, scraped) {
-    const fields = [];
-
-    const text = (key, label) => {
-      const value = scraped[key];
-      if (isBlank(value)) return;
-      fields.push({
-        label,
-        newView: () => el("span", { textContent: String(value) }),
-        oldText: scene[key],
-        same: sameText(value, scene[key]),
-        apply: (input) => { input[key] = value; },
-      });
-    };
-    text("title", "Title");
-    text("code", "Studio Code");
-    text("date", "Date");
-    text("director", "Director");
-    text("details", "Details");
-
-    if (!isBlank(scraped.urls)) {
-      const existing = scene.urls ?? [];
-      const added = scraped.urls.filter((u) => !existing.includes(u));
-      fields.push({
-        label: "URLs",
-        newView: () =>
-          el("ul", {}, scraped.urls.map((u) => el("li", { textContent: u + (existing.includes(u) ? "" : "  (new)") }))),
-        oldText: existing.join("\n"),
-        same: !added.length,
-        note: "added to the existing URLs",
-        apply: (input) => { input.urls = [...existing, ...added]; },
-      });
-    }
-
-    if (scraped.studio?.name) {
-      const matched = !!scraped.studio.stored_id;
-      fields.push({
-        label: "Studio",
-        newView: () => el("span", { textContent: scraped.studio.name + (matched ? "" : "  (not in library)") }),
-        oldText: scene.studio?.name,
-        same: matched && scraped.studio.stored_id === scene.studio?.id,
-        disabled: !matched,
-        apply: (input) => { input.studio_id = scraped.studio.stored_id; },
-      });
-    }
-
-    const merged = (key, label, list, existingList) => {
-      if (isBlank(list)) return;
-      const matched = list.filter((x) => x.stored_id);
-      const unmatched = list.filter((x) => !x.stored_id);
-      const existingIds = new Set(existingList.map((x) => x.id));
-      const toAdd = matched.filter((x) => !existingIds.has(x.stored_id));
-      fields.push({
-        label,
-        newView: () =>
-          el("div", {}, [
-            el("ul", {}, matched.map((x) => el("li", { textContent: x.name + (existingIds.has(x.stored_id) ? "" : "  (new)") }))),
-            unmatched.length
-              ? el("div", { className: `${PLUGIN_ID}-skip`, textContent: `Not in library, skipped: ${unmatched.map((x) => x.name).join(", ")}` })
-              : null,
-          ]),
-        oldText: existingList.map((x) => x.name).join(", "),
-        same: !toAdd.length,
-        disabled: !matched.length,
-        note: "added to the existing ones",
-        apply: (input) => { input[key] = [...existingList.map((x) => x.id), ...toAdd.map((x) => x.stored_id)]; },
-      });
-    };
-    merged("performer_ids", "Performers", scraped.performers, scene.performers ?? []);
-    merged("tag_ids", "Tags", scraped.tags, scene.tags ?? []);
-
-    if (scraped.image) {
-      fields.push({
-        label: "Cover image",
-        newView: () => el("img", { className: `${PLUGIN_ID}-cover`, src: scraped.image, alt: "Scraped cover" }),
-        oldView: scene.paths?.screenshot
-          ? el("img", { className: `${PLUGIN_ID}-cover`, src: scene.paths.screenshot, alt: "Current cover" })
-          : null,
-        same: false,
-        apply: (input) => { input.cover_image = scraped.image; },
-      });
-    }
-
-    return fields;
+  async function openEditTab() {
+    if (scrapeWithButton()) return;
+    const tab = Array.from(document.querySelectorAll("a.nav-link")).find(
+      (a) => visible(a) && ((a.getAttribute("data-rb-event-key") || "").includes("edit") || (a.textContent || "").trim() === "Edit")
+    );
+    if (!tab) throw new Error("Could not find the scene Edit tab");
+    tab.click();
+    await waitFor(scrapeWithButton, "the Edit tab");
   }
 
-  function openDialog(scene, scraped, endpointName) {
-    const fields = buildFields(scene, scraped);
-    const overlay = el("div", { className: `${PLUGIN_ID}-overlay` });
-    const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
-    const onKey = (e) => { if (e.key === "Escape") close(); };
-    document.addEventListener("keydown", onKey);
-    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+  // The magnifier button next to "Scrape with…" opens Stash's scene query: pick the stash-box, type the ID,
+  // and Stash lists the matching scenes. Clicking the result opens Stash's own scrape results dialog.
+  async function startNativeScrape(stashId, endpointName) {
+    await openEditTab();
+    const pane = scrapeWithButton().closest(".tab-pane") || document;
+    const toggle = Array.from(pane.querySelectorAll("button.dropdown-toggle")).find(
+      (b) => visible(b) && b.querySelector('svg[data-icon="magnifying-glass"]')
+    );
+    if (!toggle) throw new Error("Could not find the scene query button");
+    toggle.click();
+    const item = await waitFor(
+      () => Array.from(document.querySelectorAll(".dropdown-menu.show .dropdown-item")).find((i) => (i.textContent || "").trim() === endpointName),
+      `${endpointName} in the scrape menu`,
+      5000
+    );
+    item.click();
 
-    const body = el("div", { className: `${PLUGIN_ID}-body` });
-    if (editFormOpen()) {
-      body.append(el("div", {
-        className: `${PLUGIN_ID}-warning`,
-        textContent: "The Edit form is open. Updating saves straight to the scene and reloads the page, so any unsaved changes in the form are lost.",
-      }));
+    const input = await waitFor(() => document.querySelector(".modal.show .scrape-query-dialog input.text-input"), "the query dialog");
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    setter.call(input, stashId);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(50);
+    const modal = input.closest(".modal");
+    modal.querySelector(".input-group-append button").click();
+
+    const state = await waitFor(() => {
+      const items = modal.querySelectorAll(".SceneScrapeModal-list li");
+      if (items.length) return { items };
+      const txt = modal.querySelector(".SceneScrapeModal-list-container")?.textContent || "";
+      if (/\b0 scenes? found|no results/i.test(txt)) return { items: [] };
+      return null;
+    }, `${endpointName} search results`, 30000);
+
+    if (!state.items.length) {
+      Array.from(modal.querySelectorAll("button")).find((b) => /cancel/i.test(b.textContent))?.click();
+      throw new Error(`${endpointName} returned no scene for this ID`);
     }
-    if (!fields.length) body.append(el("p", { textContent: `${endpointName} returned no data for this scene.` }));
-
-    const checks = [];
-    for (const f of fields) {
-      const cb = el("input", { type: "checkbox" });
-      cb.checked = !f.same && !f.disabled;
-      cb.disabled = !!f.disabled;
-      checks.push([cb, f]);
-      const right = el("div", { className: `${PLUGIN_ID}-new` }, [
-        f.newView(),
-        f.note ? el("div", { className: `${PLUGIN_ID}-old`, textContent: f.note }) : null,
-        f.oldView
-          ? el("div", { className: `${PLUGIN_ID}-old` }, [el("div", { textContent: "Current:" }), f.oldView])
-          : !isBlank(f.oldText) && !f.same
-            ? el("div", { className: `${PLUGIN_ID}-old`, textContent: `Current: ${f.oldText}` })
-            : null,
-      ]);
-      body.append(el("div", { className: `${PLUGIN_ID}-row${f.same ? " is-same" : ""}` }, [
-        cb,
-        el("div", { className: `${PLUGIN_ID}-label`, textContent: f.label }),
-        right,
-      ]));
-    }
-
-    const cancel = el("button", { type: "button", className: "btn btn-secondary", textContent: "Cancel" });
-    cancel.addEventListener("click", close);
-    const save = el("button", { type: "button", className: "btn btn-success", textContent: "Update scene" });
-    save.disabled = !fields.length;
-    save.addEventListener("click", async () => {
-      const input = { id: scene.id };
-      let n = 0;
-      for (const [cb, f] of checks) if (cb.checked) { f.apply(input); n++; }
-      if (!n) { showToast("Nothing selected", "info"); return; }
-      save.disabled = true;
-      save.textContent = "Saving...";
-      try {
-        await saveUpdate(input);
-        showToast("Scene updated", "success");
-        close();
-        setTimeout(() => window.location.reload(), 500);
-      } catch (err) {
-        showToast(`Error: ${err.message}`, "error");
-        save.disabled = false;
-        save.textContent = "Update scene";
-      }
-    });
-
-    overlay.append(el("div", { className: `${PLUGIN_ID}-dialog`, role: "dialog" }, [
-      el("div", { className: `${PLUGIN_ID}-header`, textContent: `Update scene from ${endpointName}` }),
-      body,
-      el("div", { className: `${PLUGIN_ID}-footer` }, [cancel, save]),
-    ]));
-    document.body.append(overlay);
+    if (state.items.length > 1) return "choose";   // let the user pick in Stash's own dialog
+    state.items[0].click();
+    return "done";
   }
 
   // ── Button ───────────────────────────────────────────────────────────────
 
-  function makeButton(sceneId, remoteStashId, endpoint, endpointName) {
-    const btn = el("button", { type: "button", className: `btn minimal ${BTN_CLASS}`, title: `Update from ${endpointName}` });
-    btn.setAttribute(ATTR, endpoint);
+  function makeButton(stashId, endpointName) {
+    const btn = el("button", { type: "button", className: `btn minimal ${BTN_CLASS}`, title: `Scrape ${endpointName} ID with Stash's scraper` });
     btn.innerHTML = refreshSVG();
 
     btn.addEventListener("click", async (e) => {
@@ -295,13 +157,13 @@
       e.stopPropagation();
       btn.disabled = true;
       btn.innerHTML = `<span class="${PLUGIN_ID}-spinner" aria-hidden="true"></span>`;
+      document.body.classList.add(`${PLUGIN_ID}-busy`);   // keep the query dialog out of sight while it is driven
       try {
-        const [scene, scraped] = await Promise.all([fetchScene(sceneId), fetchScraped(remoteStashId, endpoint)]);
-        if (!scraped) { showToast(`${endpointName} returned no data for this ID`, "error"); return; }
-        openDialog(scene, scraped, endpointName);
+        await startNativeScrape(stashId, endpointName);
       } catch (err) {
-        showToast(`Error: ${err.message}`, "error");
+        showToast(err.message, "error");
       } finally {
+        document.body.classList.remove(`${PLUGIN_ID}-busy`);
         btn.disabled = false;
         btn.innerHTML = refreshSVG();
       }
@@ -360,7 +222,7 @@
       pill.setAttribute(ATTR, "1");
       if (pill.nextElementSibling?.classList.contains(BTN_CLASS)) return;
       const name = data.boxes.find((b) => b.endpoint === endpoint)?.name ?? endpoint;
-      const btn = makeButton(sceneId, entry.stash_id, endpoint, name);
+      const btn = makeButton(entry.stash_id, name);
       // After the pill's own copy button when there is one, otherwise right after the pill.
       const copyBtn =
         pill.querySelector('button[title*="opy"], button[aria-label*="opy"]') ||

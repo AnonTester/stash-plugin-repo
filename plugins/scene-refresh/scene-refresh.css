@@ -55,56 +55,5 @@
 .scene-refresh-toast--success { background: var(--bs-success, #198754); color: #fff; }
 .scene-refresh-toast--error { background: var(--bs-danger, #dc3545); color: #fff; }
 
-/* Dialog */
-.scene-refresh-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1300;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 3rem 1rem;
-  background: rgba(0, 0, 0, 0.6);
-  overflow-y: auto;
-}
-.scene-refresh-dialog {
-  width: 100%;
-  max-width: 760px;
-  background: var(--bs-body-bg, #30404d);
-  color: var(--bs-body-color, #fff);
-  border-radius: 0.4rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-}
-.scene-refresh-header,
-.scene-refresh-footer {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-}
-.scene-refresh-header { border-bottom: 1px solid rgba(255, 255, 255, 0.15); font-weight: 600; }
-.scene-refresh-footer { border-top: 1px solid rgba(255, 255, 255, 0.15); justify-content: flex-end; }
-.scene-refresh-body { padding: 0.75rem 1rem; }
-.scene-refresh-warning {
-  margin-bottom: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.3rem;
-  background: rgba(255, 193, 7, 0.18);
-  border: 1px solid rgba(255, 193, 7, 0.5);
-  font-size: 0.875rem;
-}
-.scene-refresh-row {
-  display: grid;
-  grid-template-columns: 1.5rem 8rem 1fr;
-  gap: 0.5rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  align-items: start;
-}
-.scene-refresh-row.is-same { opacity: 0.55; }
-.scene-refresh-label { font-weight: 600; }
-.scene-refresh-new { word-break: break-word; }
-.scene-refresh-old { font-size: 0.8rem; opacity: 0.65; margin-top: 0.15rem; word-break: break-word; }
-.scene-refresh-new ul { margin: 0; padding-left: 1.1rem; }
-.scene-refresh-skip { opacity: 0.6; font-style: italic; }
-.scene-refresh-cover { max-width: 220px; max-height: 140px; display: block; border-radius: 0.25rem; }
+/* Stash's scene query dialog is driven by the script; keep it out of sight while that happens. */
+.scene-refresh-busy .modal:has(.scrape-query-dialog) { visibility: hidden; }

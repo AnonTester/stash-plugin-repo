@@ -98,10 +98,10 @@
     author: AnonTester
 - id: scene-refresh
   name: Scene Refresh
-  version: "1.0.0"
-  date: "2026-10-17 02:27:06"
-  path: releases/scene-refresh-1.0.0.zip
-  sha256: 530fb320ebd1a59b5c7b69bd01bec4ca30e5c626226f91a2c2c6a75d131ef0f9
+  version: "2.0.0"
+  date: "2026-10-17 04:04:45"
+  path: releases/scene-refresh-2.0.0.zip
+  sha256: 5a76883e3733544f28b6c66a3be6c08424bb11529e665b572e3a7c670c503c11
   requires: []
   metadata:
     description: Adds a refresh button next to the stash-box IDs on a scene's File
