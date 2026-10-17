@@ -21,6 +21,7 @@ Updates are applied the same way: return to **Settings → Plugins**, check for 
 |---|---|
 | [JAVStash Performer Search Cleanup](#javstash-performer-search-cleanup) | Cleans up performer searches against the JAVStash stash-box only: drops the unrelated padding results, also tries the reversed word order, ranks by name/alias match. |
 | [Performer Refresh](#performer-refresh) | Adds a refresh button next to the stash-box ID on performer pages, replicating the Update Performer modal from the Performer Tagger. |
+| [Scene Refresh](#scene-refresh) | Adds a refresh button next to the stash-box IDs on a scene's File Info and Edit tabs to scrape or re-scrape exactly that stash-box scene, choosing field by field what to update. |
 | [Performer Disambiguation Search](#performer-disambiguation-search) | Makes performer search/autocomplete also match the Disambiguation field, not just name and aliases. |
 | [Scene Code Search](#scene-code-search) | Makes scene search/autocomplete also match the Studio Code, which the plain search ignores. |
 | [Scene URL Enhancements](#scene-url-enhancements) | Adds an open-in-new-tab button to scene URLs, fixes their field width, and can relocate them to the Details tab. |
@@ -86,6 +87,29 @@ A plugin that adds a refresh button next to the stash-box ID on performer pages,
 ### Usage
 
 Navigate to any performer page that has a stash-box ID linked. A ↻ icon appears next to the copy button for each stash-box ID. Click it to open the **Update Performer** modal.
+
+---
+
+## Scene Refresh
+
+Adds a refresh button next to every stash-box ID on a scene's **File Info** and **Edit** tabs. It scrapes (or re-scrapes) exactly that stash-box scene from its own endpoint and opens a dialog where you choose, field by field, what to update: title, studio code, date, director, details, URLs, studio, performers, tags and cover image. URLs, performers and tags are added to the existing ones; studio, performers and tags are only matched to items already in your library.
+
+### Installation
+
+**Via Plugin Source (recommended):** install from the table above once this repo is added as a source.
+
+**Manual:**
+
+1. Download the latest `scene-refresh-*.zip` from [`releases/`](releases/)
+2. Extract the zip into your Stash plugins directory so the files land at:
+   ```
+   <plugins-dir>/scene-refresh/scene-refresh.yml
+   <plugins-dir>/scene-refresh/scene-refresh.js
+   <plugins-dir>/scene-refresh/scene-refresh.css
+   ```
+3. Restart Stash or reload plugins
+
+See [`plugins/scene-refresh/README.md`](plugins/scene-refresh/README.md) for how it works and its behaviour notes.
 
 ---
 
