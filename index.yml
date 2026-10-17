@@ -1,9 +1,9 @@
 - id: performer-refresh
   name: Performer Refresh
-  version: "0.1.8"
-  date: "2026-06-09 13:21:55"
-  path: releases/performer-refresh-0.1.8.zip
-  sha256: 4f34cf447775c6e6a73fe0ae7ce239c7e79783fcdfe45207a0946ad78c125bcd
+  version: "0.1.9"
+  date: "2026-10-17 02:24:10"
+  path: releases/performer-refresh-0.1.9.zip
+  sha256: ee57b6ec9a9a812c79ba1195afa34531b44fb47e63d7965b456261060b9a2e86
   requires: []
   metadata:
     description: Adds a refresh button next to the stash-box ID on performer pages,

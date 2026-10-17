@@ -588,7 +588,13 @@
 
   // ── Inject buttons into .stash-id-pill elements ───────────────────────
 
+  // Bumped on every navigation. An injection that started before a navigation (and is still waiting on its
+  // GraphQL requests) must not insert buttons afterwards -- together with the per-pill check below this is what
+  // used to leave two refresh buttons next to one stash ID: a second injection started while the first was in flight.
+  let generation = 0;
+
   async function injectButtons() {
+    const myGeneration = generation;
     const m = window.location.pathname.match(/^\/performers\/(\d+)/);
     if (!m) return;
     const performerId = m[1];
@@ -608,6 +614,7 @@
       return;
     }
     if (!basic?.stash_ids?.length) return;
+    if (myGeneration !== generation) return;
 
     const boxByEndpoint   = Object.fromEntries(stashBoxes.map(b => [b.endpoint, b.name]));
     const stashByEndpoint = Object.fromEntries(basic.stash_ids.map(s => [s.endpoint, s]));
@@ -640,6 +647,10 @@
 
       if (!endpoint || !stashByEndpoint[endpoint]) return;
 
+      // Checked here, after the awaits and synchronously with the insert, so concurrent injections cannot both pass.
+      const container = pill.parentElement || document;
+      if (Array.from(container.querySelectorAll(`[${ATTR}]`)).some(b => b.getAttribute(ATTR) === endpoint)) return;
+
       const name = boxByEndpoint[endpoint] ?? endpoint;
       const btn  = makeButton(performerId, stashByEndpoint[endpoint].stash_id, endpoint, name);
 
@@ -666,6 +677,7 @@
     const path = window.location.pathname;
     if (path === lastPath) return;
     lastPath = path;
+    generation++;
     injecting = false;
     observer?.disconnect();
     observer = null;
