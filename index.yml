@@ -78,20 +78,20 @@
       - identification
       - machine-learning
     author: AnonTester
-- id: javstashPerformerSearchCleanup
-  name: JAVStash Performer Search Cleanup
-  version: "1.0.1"
-  date: "2026-10-17 19:21:12"
-  path: releases/javstashPerformerSearchCleanup-1.0.1.zip
-  sha256: b111c95e59155c1082b52787b33b62ec9bd0feec774666f9bbef70aa05f973ea
+- id: stashboxPerformerSearchCleanup
+  name: Stash-box Performer Search Cleanup
+  version: "1.0.0"
+  date: "2026-10-18 15:48:37"
+  path: releases/stashboxPerformerSearchCleanup-1.0.0.zip
+  sha256: 004864354ccb3564a45f02121bbd341a6f35310b907230338a66cb45cd1a8e93
   requires: []
   metadata:
-    description: Cleans up performer searches against the JAVStash stash-box
-      (Scrape with JAVStash, performer tagger) by dropping the unrelated
-      performers it pads its answer with, also searching the reversed word
-      order, and ranking by name/alias match. Scene searches and other
-      stash-boxes are not affected.
-    url: https://github.com/AnonTester/stash-plugin-repo/tree/main/plugins/javstashPerformerSearchCleanup
+    description: Makes performer searches against the stash-boxes (Scrape with
+      stash-box, performer tagger) return what was asked for. Several search
+      words must all appear in a performer's name or in one single alias. For
+      JAVStash it also searches the reversed word order and drops the unrelated
+      performers it pads its answer with. Scene searches are not affected.
+    url: https://github.com/AnonTester/stash-plugin-repo/tree/main/plugins/stashboxPerformerSearchCleanup
     tags:
       - performer
       - search

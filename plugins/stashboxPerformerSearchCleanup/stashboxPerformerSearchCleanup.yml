@@ -1,0 +1,14 @@
+name: Stash-box Performer Search Cleanup
+description: >-
+  Makes performer searches against the stash-boxes (the performer "Scrape with
+  -> <stash-box>" dialog and the performer tagger search) return what was
+  asked for. A search with several words only keeps performers whose name, or
+  one single alias, contains all of the words (StashDB, FansDB and JAVStash
+  otherwise return anyone matching any one word). For JAVStash it also searches
+  the reversed word order (First Last <-> Last First), drops the unrelated
+  performers it pads its answer with, and ranks by name/alias match. Scene
+  searches are not affected.
+version: 1.0.0
+ui:
+  javascript:
+    - stashboxPerformerSearchCleanup.js

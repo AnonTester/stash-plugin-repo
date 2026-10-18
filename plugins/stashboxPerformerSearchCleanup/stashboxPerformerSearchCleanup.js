@@ -1,30 +1,32 @@
 /**
- * JAVStash Performer Search Cleanup
+ * Stash-box Performer Search Cleanup
  *
- * Scope: performer searches against the JAVStash stash-box only (javstash.org) -- Stash's performer
- * "Scrape with -> JAVStash" dialog and the performer tagger's search box. Scene searches and every other
- * stash-box (StashDB, TPDB, FansDB, ...) are never touched.
+ * Scope: performer searches against any stash-box -- Stash's performer "Scrape with -> <stash-box>" dialog and
+ * the performer tagger's search box. Scene searches and scene scraping are never touched.
  *
  * Those searches reach Stash as ScrapeSinglePerformer{source:{stash_box_endpoint}, input:{query}}, which Stash
- * forwards to JAVStash's searchPerformer. JAVStash's answer is hard to use in three ways:
- *   - a name only matches in the word order stored on the site ("Nene Yokosuka" finds her,
- *     "Yokosuka Nene" returns nothing relevant),
- *   - when nothing matches it pads the answer with the same fixed list of unrelated western performers,
- *   - kanji/kana searches return every performer sharing a single character.
- * This wraps window.fetch for those calls only: it also queries the reversed word order, merges the results,
- * drops results whose name/aliases do not resemble the search term, and ranks the rest. Every other request
- * passes through untouched.
+ * forwards to the stash-box's searchPerformer. Two things make that answer hard to use:
+ *   - Every stash-box does an OR search for several words: "atsumi pear" on StashDB returns "Pear", "Atsumi Kato",
+ *     "Anthony Pear", ... i.e. anyone matching any single word.
+ *   - JAVStash additionally matches a name only in the word order stored on the site ("Nene Yokosuka" finds her,
+ *     "Yokosuka Nene" does not), pads the answer with the same fixed list of unrelated western performers when
+ *     nothing matches, and returns every performer sharing one kanji/kana with the search term.
+ * This wraps window.fetch for those calls only and makes the answer match what was asked for: a result is kept
+ * only when ALL search words are found in its name, or all in one single alias (never a mix of name and alias, or
+ * of two aliases). Stash-boxes other than JAVStash are only filtered when the search has two or more words; for
+ * JAVStash every search is filtered, and the reversed word order is searched too. Searches by stash-box ID
+ * (Performer Refresh) and every other request pass through untouched.
  */
 (function () {
   'use strict';
-  if (window.__javstashPerformerSearchCleanup) return;
-  window.__javstashPerformerSearchCleanup = true;
+  if (window.__stashboxPerformerSearchCleanup) return;
+  window.__stashboxPerformerSearchCleanup = true;
 
-  // Only this stash-box's performer search is filtered (substring match on the endpoint URL).
-  const ENDPOINT = 'javstash.org';
+  // JAVStash needs extra handling (reversed word order, padding, kanji), matched by endpoint URL.
+  const JAVSTASH = 'javstash.org';
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const KEEP_SCORE = 0.78;
-  const LOG = '[javstash-performer-search-cleanup]';
+  const LOG = '[stashbox-performer-search-cleanup]';
 
   const origFetch = window.fetch.bind(window);
 
@@ -78,7 +80,9 @@
     const covered = qTokens.every((qt) => {
       let hit = 0;
       for (const ct of cTokens) {
-        const r = qt === ct ? 1 : ratio(qt, ct);
+        let r = qt === ct ? 1 : ratio(qt, ct);
+        // A word typed so far ("atsum" -> "atsumi"), as the stash-boxes themselves match.
+        if (qt.length >= 3 && ct.startsWith(qt) && r < 0.9) r = 0.9;
         if (r > hit) hit = r;
       }
       if (hit < 1) exact = false;
@@ -95,6 +99,24 @@
     let best = 0;
     for (const n of names) best = Math.max(best, scoreCandidate(qTokens, n));
     return best;
+  }
+
+  // Strict AND rule for the stash-boxes other than JAVStash: every search word must be the start of a word in the
+  // performer's name, or in one single alias (accent-, case- and word-order-insensitive; "annmarie" = "ann marie").
+  function words(str) {
+    return normalize(String(str || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, ''));
+  }
+
+  function coversAll(qWords, text) {
+    const cWords = words(text);
+    if (!cWords.length) return false;
+    if (qWords.join('') === cWords.join('')) return true;
+    return qWords.every((q) => cWords.some((c) => c.startsWith(q)));
+  }
+
+  function matchesAll(qWords, performer) {
+    if (coversAll(qWords, performer.name)) return true;
+    return String(performer.aliases || '').split(',').some((a) => coversAll(qWords, a));
   }
 
   function performerKey(p) {
@@ -116,7 +138,6 @@
       const endpoint = v.source && v.source.stash_box_endpoint;
       const query = v.input && v.input.query;
       if (!endpoint || typeof query !== 'string' || !query.trim()) return null;
-      if (!endpoint.includes(ENDPOINT)) return null;
       // A stash-box ID is an exact lookup (e.g. Performer Refresh), not a name search: leave it alone.
       if (UUID_RE.test(query.trim())) return null;
       return body;
@@ -144,8 +165,11 @@
     try {
       const query = body.variables.input.query.trim();
       const qTokens = normalize(query);
+      const javstash = body.variables.source.stash_box_endpoint.includes(JAVSTASH);
+      // Other stash-boxes already answer a one-word search correctly; only several words need AND-filtering.
+      if (!javstash && qTokens.length < 2) return origFetch(input, init);
       const queries = [query];
-      if (qTokens.length >= 2) {
+      if (javstash && qTokens.length >= 2) {
         const swapped = query.split(/\s+/).reverse().join(' ');
         if (swapped.toLowerCase() !== query.toLowerCase()) queries.push(swapped);
       }
@@ -161,11 +185,17 @@
           merged.push(p);
         }
       }
-      const kept = merged
-        .map((p, i) => ({ p, i, s: scorePerformer(qTokens, p) }))
-        .filter((x) => x.s >= KEEP_SCORE)
-        .sort((a, b) => b.s - a.s || a.i - b.i)
-        .map((x) => x.p);
+      let kept;
+      if (javstash) {
+        kept = merged
+          .map((p, i) => ({ p, i, s: scorePerformer(qTokens, p) }))
+          .filter((x) => x.s >= KEEP_SCORE)
+          .sort((a, b) => b.s - a.s || a.i - b.i)
+          .map((x) => x.p);
+      } else {
+        const qWords = words(query);
+        kept = merged.filter((p) => matchesAll(qWords, p));
+      }
       console.info(LOG, JSON.stringify(query), 'queries:', queries.length, 'results:', merged.length, '-> kept:', kept.length);
       return new Response(JSON.stringify({ data: { scrapeSinglePerformer: kept } }), {
         status: 200,
