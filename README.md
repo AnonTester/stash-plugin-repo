@@ -19,7 +19,7 @@ Updates are applied the same way: return to **Settings → Plugins**, check for 
 
 | Plugin | Description |
 |---|---|
-| [JAVStash Performer Search Cleanup](#javstash-performer-search-cleanup) | Cleans up performer searches against the JAVStash stash-box only: drops the unrelated padding results, also tries the reversed word order, ranks by name/alias match. |
+| [Stash-box Performer Search Cleanup](#stash-box-performer-search-cleanup) | Makes performer searches against the stash-boxes AND-match: several words must all appear in a performer's name or in one single alias, instead of any one word matching. For JAVStash it also tries the reversed word order and drops its padding results. |
 | [Performer Refresh](#performer-refresh) | Adds a refresh button next to the stash-box ID on performer pages, replicating the Update Performer modal from the Performer Tagger. |
 | [Scene Refresh](#scene-refresh) | Adds a refresh button next to the stash-box IDs on a scene's File Info and Edit tabs that runs Stash's own scrape for exactly that stash-box ID. |
 | [Performer Disambiguation Search](#performer-disambiguation-search) | Makes performer search/autocomplete also match the Disambiguation field, not just name and aliases. |
@@ -29,11 +29,13 @@ Updates are applied the same way: return to **Settings → Plugins**, check for 
 
 ---
 
-## JAVStash Performer Search Cleanup
+## Stash-box Performer Search Cleanup
 
-Cleans up **performer searches against the JAVStash stash-box** — the performer page's *Scrape with → JAVStash* dialog and the performer tagger search. JAVStash pads its answer with a fixed list of unrelated performers when nothing matches, and only matches names in the stored word order (`Yokosuka Nene` finds nothing where `Nene Yokosuka` works). The plugin drops results that do not resemble the search term, also searches the reversed word order, and ranks the rest.
+Cleans up **performer searches against the stash-boxes** — the performer page's *Scrape with → <stash-box>* dialog and the performer tagger search. Scene searches and scene scraping are not affected.
 
-Scene searches and every other stash-box (StashDB, ThePornDB, FansDB, ...) are not affected.
+A stash-box answers a search for several words with an OR search: `atsumi pear` on StashDB returns `Pear`, `Atsumi Kato`, `Anthony Pear` and more, each matching just one word. The plugin turns it into an AND search: a result is kept only when **all** the words appear in the performer's name, or **all** in one single alias, never a mix of the two. One-word searches are left as they are.
+
+JAVStash gets extra handling, since it also matches a name only in the stored word order (`Yokosuka Nene` finds nothing where `Nene Yokosuka` works) and pads its answer with the same unrelated performers when nothing matches: the plugin also searches the reversed word order, drops results that do not resemble the search term and ranks the rest.
 
 ### Installation
 
@@ -41,15 +43,15 @@ Scene searches and every other stash-box (StashDB, ThePornDB, FansDB, ...) are n
 
 **Manual:**
 
-1. Download the latest `javstashPerformerSearchCleanup-*.zip` from [`releases/`](releases/)
+1. Download the latest `stashboxPerformerSearchCleanup-*.zip` from [`releases/`](releases/)
 2. Extract the zip into your Stash plugins directory so the files land at:
    ```
-   <plugins-dir>/javstashPerformerSearchCleanup/javstashPerformerSearchCleanup.yml
-   <plugins-dir>/javstashPerformerSearchCleanup/javstashPerformerSearchCleanup.js
+   <plugins-dir>/stashboxPerformerSearchCleanup/stashboxPerformerSearchCleanup.yml
+   <plugins-dir>/stashboxPerformerSearchCleanup/stashboxPerformerSearchCleanup.js
    ```
 3. Restart Stash or reload plugins
 
-See [`plugins/javstashPerformerSearchCleanup/README.md`](plugins/javstashPerformerSearchCleanup/README.md) for how it works and known limitations.
+See [`plugins/stashboxPerformerSearchCleanup/README.md`](plugins/stashboxPerformerSearchCleanup/README.md) for how it works and known limitations.
 
 ---
 
