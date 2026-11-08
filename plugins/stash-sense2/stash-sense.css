@@ -2342,7 +2342,10 @@
 /* Responsive for Recommendations */
 @media (max-width: 768px) {
   .ss-recommendations {
-    padding: 16px;
+    /* Horizontal padding only, roughly half the desktop value and in line
+       with Stash's own mobile content gutter -- the vertical 16px above/
+       below is unrelated to the left/right-margin complaint this matches. */
+    padding: 16px 8px;
   }
 
   .ss-type-cards {
@@ -2383,6 +2386,19 @@
   .ss-app-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .ss-app-header-right {
+    /* The pill's own content (plugin/sidecar version text, changelog
+       button, status dot+label) is wide enough on its own to overflow a
+       phone viewport under the desktop rule's `white-space: nowrap` --
+       let it wrap onto its own lines and fill the column instead of
+       forcing the whole page to scroll horizontally. */
+    width: 100%;
+    flex-wrap: wrap;
+    white-space: normal;
+    font-size: 12px;
+    padding: 6px 10px;
   }
 }
 
@@ -3093,8 +3109,23 @@ a.ss-upstream-endpoint-badge:hover {
 
 @media (max-width: 768px) {
   .ss-page-tab {
-    padding: 10px 16px;
-    font-size: 14px;
+    /* Desktop's flex-shrink: 0 (each tab sized to its own label, bar
+       scrolls if they overflow) left the 3 tabs (Recommendations /
+       Operations / Settings) too wide to all fit a phone viewport, cutting
+       off the last one and requiring a horizontal scroll with no visible
+       affordance that it was scrollable. An even 1/3 split (tried first)
+       over-shrunk "Recommendations", the longest label, truncating it with
+       an ellipsis even though the 3 labels' own natural widths combined
+       already fit a phone viewport -- size each tab to its own label
+       (flex-basis: auto) and only shrink, proportionally, if they
+       genuinely don't fit; the ellipsis stays as a fallback for that case. */
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 10px 6px;
+    font-size: 13px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -3520,7 +3551,11 @@ a.ss-upstream-endpoint-badge:hover {
 /* Responsive Settings */
 @media (max-width: 768px) {
   .ss-settings-page {
-    padding: 0 12px 16px;
+    /* No horizontal padding here either (see the desktop rule's own
+       comment) -- adding 12px on top of .ss-recommendations' own mobile
+       gutter double-indented this panel and pushed it into horizontal
+       scroll. */
+    padding: 0 0 16px;
   }
 
   .ss-hw-banner-content {
@@ -3856,7 +3891,8 @@ a.ss-upstream-endpoint-badge:hover {
 /* Responsive Operations */
 @media (max-width: 768px) {
   .ss-operations-page {
-    padding: 0 12px 16px;
+    /* Same reasoning as .ss-settings-page's own mobile override above. */
+    padding: 0 0 16px;
   }
 
   .ss-quick-actions {

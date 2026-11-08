@@ -697,7 +697,7 @@
       ${versionHtml}
       <button type="button" id="ss-changelog-btn" title="View changelog" style="background:none;border:none;cursor:pointer;color:inherit;opacity:0.7;padding:0 4px;font-size:0.85rem;line-height:1;">&#128220;</button>
       <span class="ss-status-dot"></span>
-      <span class="ss-status-label">${connected ? 'Connected' : 'Disconnected'}</span>
+      <span class="ss-status-label">${connected ? 'Online' : 'Offline'}</span>
       ${sidecarStatus?.error ? `<span class="ss-status-error">${sidecarStatus.error}</span>` : ''}
     `;
     // Re-bound on every call (innerHTML above just replaced the element) --
@@ -2630,10 +2630,16 @@
         }
       } catch (e) {
         const msg = String(e?.message || e || '');
-        const stale = /recommendation not found|recommendation removed because referenced scene no longer exists/i.test(msg);
+        // "recommendation removed because" is the stable prefix every server-side prune reason starts
+        // with (missing scene, missing file, fileless scene, ...) -- match on that prefix, not the full
+        // reason text, so a wording change on any one of those prune paths (confirmed live 2026-11-08:
+        // the duplicate_scenes/duplicate_scene_files messages got more specific and stopped matching the
+        // old exact-phrase regex here, leaving a stale card on the page until a manual refresh) can never
+        // again silently break this detection.
+        const stale = /recommendation not found|recommendation removed because/i.test(msg);
         showToast(
           stale
-            ? 'Recommendation removed because source/target scene no longer exists.'
+            ? 'Recommendation removed because source/target scene or file no longer exists.'
             : `Failed to open recommendation: ${msg}`,
           stale ? 'warning' : 'error',
         );
@@ -2768,7 +2774,22 @@
         btn.textContent = 'Merging...';
 
         await RecommendationsAPI.mergePerformers(keeperId, sourceIds);
-        await RecommendationsAPI.resolve(rec.id, 'merged', { keeper_id: keeperId });
+        try {
+          await RecommendationsAPI.resolve(rec.id, 'merged', { keeper_id: keeperId });
+        } catch (resolveErr) {
+          // mergePerformers destroys the source performer(s), which fires Stash's own
+          // Performer.Destroy.Post hook synchronously -- that hook's cleanup-entity call deletes
+          // every recommendation referencing the now-gone performer, INCLUDING this one, often before
+          // this resolve call lands. The merge itself already succeeded (that's the only thing that
+          // actually matters); a 404 here just means the hook got there first, not that anything
+          // failed -- same race, same tolerance already applied to the merge call itself a few lines
+          // below (showNameConflictDialog's "Merge & Continue" handler).
+          const msg = String(resolveErr.message || resolveErr);
+          if (!msg.includes('not found') && !msg.includes('404')) {
+            throw resolveErr;
+          }
+          console.warn('[Stash Sense] Recommendation already removed by the destroy hook before resolve landed -- merge still succeeded.');
+        }
 
         showSuccessAndReturn(btn, 'Merged!', rec.id);
       } catch (e) {
@@ -6071,7 +6092,8 @@
           showSuccessAndReturn(applyBtn, 'Done!', rec.id);
         } catch (e) {
           const msg = String(e?.message || e || '');
-          const stale = /recommendation not found|recommendation removed because referenced scene no longer exists/i.test(msg);
+          // See renderDetail's own comment on this same prefix match.
+          const stale = /recommendation not found|recommendation removed because/i.test(msg);
           if (stale) {
             showToast('Recommendation removed because source/target scene no longer exists.', 'warning');
             removeFromListCache(rec.id);
@@ -6095,7 +6117,8 @@
         showSuccessAndReturn(applyBtn, 'Applied!', rec.id);
       } catch (e) {
         const msg = String(e?.message || e || '');
-        const stale = /scene .*not found|removed stale upstream scene recommendation|recommendation removed because referenced scene no longer exists|recommendation not found/i.test(msg);
+        // See renderDetail's own comment on the "recommendation removed because" prefix match.
+        const stale = /scene .*not found|removed stale upstream scene recommendation|recommendation removed because|recommendation not found/i.test(msg);
         if (stale) {
           showToast('Recommendation removed because source/target scene no longer exists.', 'warning');
           removeFromListCache(rec.id);
