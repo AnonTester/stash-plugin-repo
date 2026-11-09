@@ -53,11 +53,16 @@ for PLUGIN_PATH in "${PLUGINS_DIR}"/*/; do
   # stash-sense2's stash_sense_backend.py) -- nullglob (set above) makes
   # this a no-op for plugins with no .py files.
   (cd "$PLUGIN_PATH" && zip -j "$ZIP_ABS" *.yml *.js *.css *.py)
-  # A plugin may also ship a userscripts/ directory (stash-sense2's manifest serves
-  # it as a plugin asset) -- kept with its directory structure, unlike the flat files above.
-  if [[ -d "${PLUGIN_PATH}userscripts" ]]; then
-    (cd "$PLUGIN_PATH" && zip -r "$ZIP_ABS" userscripts)
-  fi
+  # A plugin may also ship its own subdirectories (e.g. stash-sense2's
+  # userscripts/ and logo/, both served as plugin assets via its manifest's
+  # `assets:` mapping) -- kept with their directory structure, unlike the
+  # flat files above. Generic over whatever subdirectories actually exist,
+  # not a hardcoded name list, so a plugin adding a new asset folder later
+  # doesn't also need a build.sh change to get it included in the zip.
+  for SUBDIR in "${PLUGIN_PATH}"*/; do
+    [[ -d "$SUBDIR" ]] || continue
+    (cd "$PLUGIN_PATH" && zip -r "$ZIP_ABS" "$(basename "$SUBDIR")")
+  done
 
   # ── Compute SHA256 ─────────────────────────────────────────────────────────
   SHA256=$(sha256sum "${ZIP_PATH}" | cut -d' ' -f1)
@@ -105,7 +110,12 @@ PYEOF
   echo "  index.yml updated"
 
   git add "${ZIP_PATH}" "${INDEX}" "${PLUGIN_PATH}"*.yml "${PLUGIN_PATH}"*.js "${PLUGIN_PATH}"*.css "${PLUGIN_PATH}"*.py
-  if [[ -d "${PLUGIN_PATH}userscripts" ]]; then git add "${PLUGIN_PATH}userscripts"; fi
+  # Same generic-over-subdirectories treatment as the zip step above --
+  # stage whatever asset folders actually exist instead of a hardcoded name.
+  for SUBDIR in "${PLUGIN_PATH}"*/; do
+    [[ -d "$SUBDIR" ]] || continue
+    git add "$SUBDIR"
+  done
 
   # ── Prune old releases for this plugin — keep the ${MAX_KEEP} most recent ──
   OLD_ZIPS=$(ls "${RELEASES_DIR}/${PLUGIN_ID}"-*.zip 2>/dev/null \
